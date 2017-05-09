@@ -5,10 +5,9 @@ from itertools import compress
 
 class InputData:
 
-    #----------------------------------------------------------------------
-
-    def __init__(self, ExcelPath, demands='Demand data', solar='Solar data', tech='Technology', gen='General'):
-        self.path = ExcelPath
+    def __init__(self, excel_path, demands='Demand data', solar='Solar data',
+                 tech='Technology', gen='General'):
+        self.path = excel_path
         self.DemandSheet = demands
         self.SolarSheet = solar
         self.TechSheet = tech
