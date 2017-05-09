@@ -6,8 +6,9 @@ import numpy as np
 from itertools import compress
 from InputData import InputData
 
-excel_path = r'/home/uvic-civil-coop/Coop/General_input.xlsx'
-#excel_path=r'C:\Users\mobo\OneDrive\0PhD\Python-based energy hub\Generic_energy_hub_PYTHON\data\General_input.xlsx'
+from config import config
+
+excel_path = config.input_file
 data = InputData(excel_path)
 
 
@@ -361,10 +362,8 @@ results = solver_manager.solve(model, opt=opt, tee=True, timelimit=None)
 
 
 def pyomo_save_results(options=None, instance=None, results=None):
-    OUTPUT = open(
-        r'C:\Users\mobo\OneDrive\0PhD\Python-based energy hub\Generic_energy_hub_PYTHON\data\Results_generic_hub.txt', 'w')
-    print(results, file=OUTPUT)
-    OUTPUT.close()
+    with open(config.output_file, 'w') as OUTPUT:
+        print(results, file=OUTPUT)
 
 
 print(model.TotalCost.value)
