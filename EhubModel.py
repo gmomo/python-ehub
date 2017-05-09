@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 from itertools import compress
 from InputData import InputData
-#import InputData
 
 excel_path = r'/home/uvic-civil-coop/Coop/General_input.xlsx'
 #excel_path=r'C:\Users\mobo\OneDrive\0PhD\Python-based energy hub\Generic_energy_hub_PYTHON\data\General_input.xlsx'
