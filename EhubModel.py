@@ -4,8 +4,8 @@ import pyomo.environ
 import pandas as pd
 import numpy as np
 from itertools import compress
-from InputData import InputData
 
+from InputData import InputData
 from config import config
 
 excel_path = config.input_file
