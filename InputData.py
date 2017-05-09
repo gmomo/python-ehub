@@ -52,44 +52,44 @@ class InputData:
         Storage = Storage.fillna(0)
         self.StorageData = Storage
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
-    def Dict1D(self, dictVar, dataframe):
+    def Dict1D(self, dataframe):
+        dict_var = {}
         for i, vali in enumerate(dataframe.index):
-            dictVar[i + 1] = round(dataframe.iloc[i][1], 4)
-        return dictVar
+            dict_var[i + 1] = round(dataframe.iloc[i][1], 4)
+        return dict_var
 
-    def Dict1D_val_index(self, dictVar, dataframe):
+    def Dict1D_val_index(self, dataframe):
+        dict_var = {}
         for i, vali in enumerate(dataframe.index):
-            dictVar[vali] = round(dataframe.iloc[i][1], 4)
-        return dictVar
+            dict_var[vali] = round(dataframe.iloc[i][1], 4)
+        return dict_var
 
-    def DictND(self, dictVar, dataframe):
+    def DictND(self, dataframe):
+        dict_var = {}
         for i, vali in enumerate(dataframe.index):
             for j, valj in enumerate(dataframe.columns):
-                dictVar[vali, valj] = round(dataframe.iloc[i][j + 1], 4)
-        return dictVar
+                dict_var[vali, valj] = round(dataframe.iloc[i][j + 1], 4)
+        return dict_var
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def Demands(self):
         Loads_init = self.DemandData
         Loads_init.index = list(range(1, len(Loads_init.index) + 1))
         Loads_init.columns = list(range(1, len(Loads_init.columns) + 1))
-        loads_init = {}
-        loads_init = self.DictND(loads_init, Loads_init)
-        return loads_init
 
-    #----------------------------------------------------------------------
+        return self.DictND(Loads_init)
+
+    # ----------------------------------------------------------------------
 
     def SolarData(self):
         SolarData = pd.read_excel(self.path, sheetname=self.SolarSheet)
         SolarData.columns = [1]
-        solar_init = {}
-        solar_init = self.Dict1D(solar_init, SolarData)
-        return solar_init
+        return self.Dict1D(SolarData)
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def CHP_list(self):
         # find dispatch tech (CHP)
@@ -101,7 +101,7 @@ class InputData:
                 CHP_setlist.append(n + 2)
         return CHP_setlist
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def Roof_tech(self):
         Roof_techset = []
@@ -112,7 +112,7 @@ class InputData:
 
         return Roof_techset
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def cMatrix(self):
 
@@ -132,12 +132,10 @@ class InputData:
         Cmatrix = pd.concat([Grid, Cmatrix])
         Cmatrix.index = list(range(1, len(TechOutputs2.columns) + 2))
         Cmatrix.columns = list(range(1, len(TechOutputs2.index) + 1))
-        cMatrixDict = {}
-        cMatrixDict = self.DictND(cMatrixDict, Cmatrix)
 
-        return cMatrixDict
+        return self.DictND(Cmatrix)
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def PartLoad(self):
         PartLoad = self.Technologies.loc["MinLoad (%)", ] / 100
@@ -155,12 +153,9 @@ class InputData:
         for i in SolartechsSets:
             partload.drop(i, inplace=True)
 
-        PartloadInput = {}
-        PartloadInput = self.DictND(PartloadInput, partload)
+        return self.DictND(partload)
 
-        return PartloadInput
-
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def MaxCapacity(self):
         MaxCap = self.Technologies.loc["Maximum Capacity", ]
@@ -176,7 +171,7 @@ class InputData:
 
         return maxCap
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def SolarSet(self):
         return list(compress(list(range(1 + 1, len(self.Technologies.columns) + 2)), list(self.Technologies.loc["Area (m2)"] > 0)))
@@ -202,7 +197,7 @@ class InputData:
 
         return list(partload.loc[partload.sum(axis=1) > 0].index)
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def LinearCost(self):
         LinearCost = self.Technologies.loc["CapCost (chf/kW)", ]
@@ -229,12 +224,9 @@ class InputData:
         linCost.columns = list(range(1, len(self.TechOutputs.index) + 1))
         linCost.loc[1] = 0
 
-        linCapCosts = {}
-        linCapCosts = self.DictND(linCapCosts, linCost)
+        return self.DictND(linCost)
 
-        return linCapCosts
-
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
     ### Find which is the primary input for capacity #####
     def DisDemands(self):
 
@@ -243,7 +235,6 @@ class InputData:
 
         for n, val in enumerate(CHPlist):
             counter = 0
-            #import pdb; pdb.set_trace()
             for i, value in enumerate(np.array(self.TechOutputs.iloc[:, val - 2], dtype=int)):
                 if value > 0 and counter == 0:
                     dispatch_demands[n, 0] = i + 1
@@ -253,7 +244,7 @@ class InputData:
 
         return dispatch_demands
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def InterestRate(self):
         Interest_rate = pd.read_excel(
@@ -262,17 +253,16 @@ class InputData:
         Interest_rate_R = Interest_rate.loc["Interest Rate r"][0]
         return Interest_rate_R
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def LifeTime(self):
         Life = pd.DataFrame(list(self.Technologies.loc["Lifetime (yr)"]))
         Life.columns = [1]
         Life.index = list(range(2, len(self.TechOutputs.columns) + 2))
-        lifeTimeTechs = {}
-        lifeTimeTechs = self.Dict1D_val_index(lifeTimeTechs, Life)
-        return lifeTimeTechs
 
-    #----------------------------------------------------------------------
+        return self.Dict1D_val_index(Life)
+
+    # ----------------------------------------------------------------------
 
     def NPV(self):
         Interest_rate_R = self.InterestRate()
@@ -282,23 +272,20 @@ class InputData:
 
         NetPresentValue = 1 / (((1 + Interest_rate_R) ** Life - 1) /
                                (Interest_rate_R * ((1 + Interest_rate_R) ** Life)))
-        NetPresentValueTech = {}
-        NetPresentValueTech = self.Dict1D_val_index(
-            NetPresentValueTech, NetPresentValue)
-        return NetPresentValueTech
 
-    #----------------------------------------------------------------------
+        return self.Dict1D_val_index(NetPresentValue)
+
+    # ----------------------------------------------------------------------
 
     def VarMaintCost(self):
         VarOMF = pd.DataFrame(list(self.Technologies.loc["OMVCost (chf/kWh)"]))
         VarOMF.columns = [1]
         VarOMF.index = list(range(1 + 1, len(self.TechOutputs.columns) + 2))
         VarOMF.loc[1] = 0
-        omvCosts = {}
-        omvCosts = self.Dict1D_val_index(omvCosts, VarOMF)
-        return omvCosts
 
-    #----------------------------------------------------------------------
+        return self.Dict1D_val_index(VarOMF)
+
+    # ----------------------------------------------------------------------
 
     def CarbFactors(self):
         Carbon = pd.read_excel(
@@ -318,12 +305,9 @@ class InputData:
         CarbonFactors.columns = list(range(1, len(CarbonFactors.columns) + 1))
         CarbonFactors = CarbonFactors.transpose()
 
-        carbonFactors = {}
-        carbonFactors = self.Dict1D(carbonFactors, CarbonFactors)
+        return self.Dict1D(CarbonFactors)
 
-        return carbonFactors
-
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def FuelPrice(self):
         Fuel = pd.read_excel(self.path, sheetname=self.GeneralSheet,
@@ -353,95 +337,83 @@ class InputData:
                     CarbonFactors.loc[index] = float(
                         Fuel["Price (chf/kWh)"][n])
 
-        opPrices = {}
-        opPrices = self.Dict1D(opPrices, CarbonFactors)
+        return self.Dict1D(CarbonFactors)
 
-        return opPrices
-
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def FeedIn(self):
         Tariff = pd.read_excel(
-            self.path, sheetname=self.GeneralSheet, skiprows=11, index_col=0, skip_footer=0)
+            self.path, sheetname=self.GeneralSheet, skiprows=11, index_col=0,
+            skip_footer=0)
         Tariff = Tariff.dropna(axis=0, how='all')
         Tariff = Tariff.dropna(axis=1, how='all')
         Tariff.columns = [1]
         Tariff.index = list(range(1, len(self.DemandData.columns) + 1))
 
-        feedInTariffs = {}
-        feedInTariffs = self.Dict1D_val_index(feedInTariffs, Tariff)
-        return feedInTariffs
+        return self.Dict1D_val_index(Tariff)
 
     #### Storage ####
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def StorageCh(self):
-        maxStorCh = {}
         MaxCharge = pd.DataFrame(list(self.StorageData.loc["max_charge"]))
         MaxCharge.columns = [1]
-        maxStorCh = self.Dict1D(maxStorCh, MaxCharge)
-        return maxStorCh
+
+        return self.Dict1D(MaxCharge)
 
     def StorageDisch(self):
-        maxStorDisch = {}
         MaxDischarge = pd.DataFrame(
             list(self.StorageData.loc["max_discharge"]))
         MaxDischarge.columns = [1]
-        maxStorDisch = self.Dict1D(maxStorDisch, MaxDischarge)
-        return maxStorDisch
+
+        return self.Dict1D(MaxDischarge)
 
     def StorageLoss(self):
-        lossesStorStanding = {}
         losses = pd.DataFrame(list(self.StorageData.loc["decay"]))
         losses.columns = [1]
-        lossesStorStanding = self.Dict1D(lossesStorStanding, losses)
-        return lossesStorStanding
+
+        return self.Dict1D(losses)
 
     def StorageEfCh(self):
-        chargingEff = {}
         Ch_eff = pd.DataFrame(list(self.StorageData.loc["ch_eff"]))
         Ch_eff.columns = [1]
-        chargingEff = self.Dict1D(chargingEff, Ch_eff)
-        return chargingEff
+
+        return self.Dict1D(Ch_eff)
 
     def StorageEfDisch(self):
-        dischLosses = {}
         Disch_eff = pd.DataFrame(list(self.StorageData.loc["disch_eff"]))
         Disch_eff.columns = [1]
-        dischLosses = self.Dict1D(dischLosses, Disch_eff)
-        return dischLosses
+
+        return self.Dict1D(Disch_eff)
 
     def StorageMinSoC(self):
-        minSoC = {}
         min_state = pd.DataFrame(list(self.StorageData.loc["min_state"]))
         min_state.columns = [1]
-        minSoC = self.Dict1D(minSoC, min_state)
-        return minSoC
+
+        return self.Dict1D(min_state)
 
     def StorageLife(self):
-        lifeTimeStorages = {}
         LifeBattery = pd.DataFrame(
             list(self.StorageData.loc["LifeBat (year)"]))
         LifeBattery.columns = [1]
-        lifeTimeStorages = self.Dict1D(lifeTimeStorages, LifeBattery)
-        return lifeTimeStorages
+
+        return self.Dict1D(LifeBattery)
 
     def StorageLinCost(self):
-        linStorageCosts = {}
         LinearCostStorage = pd.DataFrame(
             list(self.StorageData.loc["CostBat (chf/kWh)"]))
         LinearCostStorage.columns = [1]
-        linStorageCosts = self.Dict1D(linStorageCosts, LinearCostStorage)
-        return linStorageCosts
+
+        return self.Dict1D(LinearCostStorage)
 
     def StorageNPV(self):
         Interest_rate_R = self.InterestRate()
+
         LifeBattery = pd.DataFrame(
             list(self.StorageData.loc["LifeBat (year)"]))
         LifeBattery.columns = [1]
-        NetPresentValueStor = {}
+
         NetPresentValueStorage = 1 / (((1 + Interest_rate_R) ** LifeBattery - 1) / (
             Interest_rate_R * ((1 + Interest_rate_R) ** LifeBattery)))
-        NetPresentValueStor = self.Dict1D(
-            NetPresentValueStor, NetPresentValueStorage)
-        return NetPresentValueStor
+
+        return self.Dict1D(NetPresentValueStorage)

@@ -10,9 +10,9 @@ excel_path = config.input_file
 data = InputData(excel_path)
 
 
-#-----------------------------------------------------------------------------#
-## Creating a model ##
-#-----------------------------------------------------------------------------#
+# --------------------------------------------------------------------------- #
+# Creating a model
+# --------------------------------------------------------------------------- #
 
 model = ConcreteModel()
 
@@ -77,7 +77,7 @@ model.lifeTimeTechs = Param(model.In, initialize=data.LifeTime())
 model.lifeTimeStorages = Param(model.Out, initialize=data.StorageLife())
 
 
-## Declaring Global Parameters ##
+# Declaring Global Parameters
 model.timeHorizon = Param(within=NonNegativeReals, initialize=20)
 model.bigM = Param(within=NonNegativeReals, initialize=5000)
 
@@ -113,9 +113,9 @@ model.E = Var(model.Time, model.Out, domain=NonNegativeReals)
 model.StorageCap = Var(model.Out, domain=NonNegativeReals)
 model.Ystorage = Var(model.Out, domain=Binary)
 
-#-----------------------------------------------------------------------------#
-# GLobal constraints
-#-----------------------------------------------------------------------------#
+# --------------------------------------------------------------------------- #
+# Global constraints
+# --------------------------------------------------------------------------- #
 
 
 def loadsBalance_rule(model, t, out):
@@ -155,9 +155,9 @@ def capacity_rule(model, inp, out):
 model.capacity_feasibility = Constraint(
     model.In, model.Out, rule=capacity_rule)
 
-#-----------------------------------------------------------------------------#
+# --------------------------------------------------------------------------- #
 # Specific constraints
-#-----------------------------------------------------------------------------#
+# --------------------------------------------------------------------------- #
 
 
 def partLoadL_rule(model, t, disp, out):
@@ -222,9 +222,9 @@ for x in range(1, len(dispatch_demands) + 1):
                   model.maxCapTechs[CHP_list[x - 1]] * model.Ytechnologies[CHP_list[x - 1], dispatch_demands[x - 1, 0]])
 
 
-#-----------------------------------------------------------------------------#
+# --------------------------------------------------------------------------- #
 # Storage constraints
-#-----------------------------------------------------------------------------#
+# --------------------------------------------------------------------------- #
 
 def storageBalance_rule(model, t, out):
     return (model.E[t, out] == (model.lossesStorStanding[out] * model.E[(t - 1), out]
@@ -273,9 +273,9 @@ def storageCap_rule(model, t, out):
 model.storageCap = Constraint(model.Time, model.Out, rule=storageCap_rule)
 
 
-#-----------------------------------------------------------------------------#
+# --------------------------------------------------------------------------- #
 # Objective functions
-#-----------------------------------------------------------------------------#
+# --------------------------------------------------------------------------- #
 def objective_rule(model):
     return (model.TotalCost)
 
@@ -345,9 +345,9 @@ def totalCarbon_rule(model):
 model.totalCarbon = Constraint(rule=totalCarbon_rule)
 
 
-#-----------------------------------------------------------------------------#
-## Solve model ##
-#-----------------------------------------------------------------------------#
+# --------------------------------------------------------------------------- #
+# Solve model
+# --------------------------------------------------------------------------- #
 
 
 opt = SolverFactory("glpk")
