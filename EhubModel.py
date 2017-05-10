@@ -3,11 +3,12 @@ from pyomo.core.base import (RangeSet, Set, Param, Var, Constraint,
                              ConstraintList, Objective, minimize)
 from pyomo.opt import SolverFactory, SolverManagerFactory
 
-from InputData import InputData
-from config import config
+# noinspection PyUnresolvedReferences
+import pyomo.environ  # used to find solvers
 
-excel_path = config.input_file
-data = InputData(excel_path)
+from InputData import InputData
+
+data = InputData("input_test.xlsx")
 
 
 # --------------------------------------------------------------------------- #
@@ -238,7 +239,7 @@ model.storageBalance = Constraint(
 
 model.StorCon = ConstraintList()
 for x in range(1, data.DemandData.shape[1] + 1):
-
+    # 8760 I believe is the last row - 1
     model.StorCon.add(model.E[1, x] == model.E[8760, x])
 
 
@@ -360,7 +361,7 @@ results = solver_manager.solve(model, opt=opt, tee=True, timelimit=None)
 
 
 def pyomo_save_results(options=None, instance=None, results=None):
-    with open(config.output_file, 'w') as OUTPUT:
+    with open("pyomo_results.txt", 'w') as OUTPUT:
         print(results, file=OUTPUT)
 
 
