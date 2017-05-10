@@ -1,0 +1,14 @@
+# The file to use as input for the data
+input_file: "input_test.xlsx"
+
+# The file to output the results in
+output_file: "output.txt"
+
+# The solver to be used
+solver:
+    # the name of the solver
+    name: "glpk"
+
+    # The options to be passed to the solver
+    options:
+        mipgap: 0.05
