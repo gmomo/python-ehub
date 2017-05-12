@@ -7,6 +7,7 @@ from pyomo.opt import SolverFactory, SolverManagerFactory
 import pyomo.environ  # used to find solvers
 
 from InputData import InputData
+from config import settings
 
 
 class EHubModel:
@@ -367,19 +368,18 @@ class EHubModel:
 
         self._model = model
 
-    def solve(self, solver, options):
+    def solve(self):
         """
         Solves the model.
-        
-        Args:
-            solver: The name of the solver to use
-            options: The options to be passed to the solver
 
         Returns:
             The results
         """
         if not self._model:
             raise RuntimeError("Can't solve a model with no data.")
+
+        solver = settings["solver"]["name"]
+        options = settings["solver"]["options"]
 
         opt = SolverFactory(solver)
         opt.options = options
