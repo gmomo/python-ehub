@@ -380,6 +380,8 @@ class EHubModel:
 
         solver = settings["solver"]["name"]
         options = settings["solver"]["options"]
+        if options is None:
+            options = {}
 
         opt = SolverFactory(solver)
         opt.options = options
