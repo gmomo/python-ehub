@@ -4,3 +4,4 @@ Pyomo==5.2
 pandas==0.20.1
 numpy==1.12.1
 PyYAML==3.12
+xlrd==1.0.0
