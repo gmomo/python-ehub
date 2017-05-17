@@ -387,5 +387,10 @@ class EHubModel:
         opt.options = options
         solver_manager = SolverManagerFactory("serial")
 
-        return solver_manager.solve(self._model, opt=opt, tee=True,
-                                    timelimit=None)
+        results = solver_manager.solve(self._model, opt=opt, tee=True,
+                                       timelimit=None)
+
+        # in order to get the solutions found by the solver
+        self._model.solutions.store_to(results)
+
+        return results
