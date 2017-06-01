@@ -36,7 +36,7 @@
 ### District heating parameters
 * Heat losses: model.HeatLosses=Param(model.hub_i, model.hub_j, initialize=0.001)
 * Investment cost pipe: model.PipeCost=Param(initialize=200)
-* model.Losses=Param(model.hub_i, model.hub_j, initialize=0.001 )
+* Energy losses: model.Losses=Param(model.hub_i, model.hub_j, initialize=0.001 )
 
 ### Energy load parameters
 * Energy demands: model.loads = Param(model.hub_i, model.Time, model.Out, initialize=data.Demands())
@@ -57,7 +57,7 @@
 * Income from energy exports: model.IncomeExp = Var(domain=NonNegativeReals)
 * Investment cost: model.InvCost = Var(domain=NonNegativeReals)
 * Total carbon emissions: model.TotalCarbon = Var(domain=Reals)
-* model.TotalCarbon2 = Var(domain=Reals)
+* Total carbon emissions (necessary for Pyomo): model.TotalCarbon2 = Var(domain=Reals)
 * Technology NPV: model.NetPresentValueTech = Param(model.In, domain=NonNegativeReals, initialize=data.NPV())
 * Storage NPV: model.NetPresentValueStor = Param(model.Out, domain=NonNegativeReals, initialize=data.StorageNPV())
 
