@@ -1,12 +1,13 @@
-from pyomo.core.base import (RangeSet, Set, Param, Var, Constraint,
-                             ConcreteModel, NonNegativeReals, Binary, Reals,
-                             ConstraintList, Objective, minimize)
-from pyomo.opt import SolverFactory, SolverManagerFactory
-
 # noinspection PyUnresolvedReferences
 import pyomo.environ  # used to find solvers
+from pyomo.core.base import (
+    RangeSet, Set, Param, Var, Constraint,
+    ConcreteModel, NonNegativeReals, Binary, Reals,
+    ConstraintList, Objective, minimize
+)
+from pyomo.opt import SolverFactory, SolverManagerFactory
 
-from InputData import InputData
+from energy_hub.input_data import InputData
 
 data = InputData("input_test.xlsx")
 

@@ -1,13 +1,13 @@
+# noinspection PyUnresolvedReferences
+import pyomo.environ  # used to find solvers
 from pyomo.core.base import (
     ConcreteModel, RangeSet, Set, Param, NonNegativeReals, Binary, Var, Reals,
     Constraint, ConstraintList, Objective, minimize
 )
 from pyomo.opt import SolverFactory, SolverManagerFactory
-# noinspection PyUnresolvedReferences
-import pyomo.environ  # used to find solvers
 
-from InputData import InputData
 from config import settings
+from energy_hub.input_data import InputData
 from data_formats import response_format
 
 
