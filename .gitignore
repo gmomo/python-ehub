@@ -1,4 +1,9 @@
+__pycache__/
+.~lock*
+*.rar
+
+.idea/
 *.pdf
+output.txt
 *.pckl
 *.png
-.idea/*
