@@ -1,3 +1,4 @@
 *.pdf
 *.pckl
 *.png
+.idea/*
