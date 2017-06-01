@@ -1,3 +1,11 @@
+NOTE
+====
+
+**This repo has been moved.**
+
+**The new repo resides at: <https://github.com/hues-platform/python-ehub>**
+
+
 PyHub
 =====
 
