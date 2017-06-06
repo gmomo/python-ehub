@@ -4,6 +4,7 @@ __pycache__/
 
 .idea/
 *.pdf
+out.txt
 output.txt
 *.pckl
 *.png
