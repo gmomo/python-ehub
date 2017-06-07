@@ -7,18 +7,31 @@ schema = {
     'type': 'object',
     'properties': {
         'version': {
-            'description': 'The SemVar version number for the format',
+            'description': 'The SemVer version number for the format',
             'type': 'string',
             'enum': ['0.1.0'],
         },
         'solution': {
             'type': 'object',
             'properties': {
-                'total_cost': {
-                    'type': 'number',
+                'objective': {
+                    'type': 'object',
+                    'properties': {},
+                    'additionalProperties': True,
                 },
+                'variables': {
+                    'type': 'object',
+                    'properties': {},
+                    'additionalProperties': True,
+                },
+                'parameters': {
+                    'type': 'object',
+                    'properties': {},
+                    'additionalProperties': True,
+                },
+                'constraints': {},
             },
-            'required': ['total_cost'],
+            'required': ['objective', 'variables'],
         },
         'solver': {
             'type': 'object',
@@ -48,15 +61,35 @@ with suppress(ValidationError):
     validate({}, schema)
 
 
-def create_response(results, model):
-    results = results.json_repn()
+def to_matrix(var):
+    # Determine the dimension of the matrix
+    try:
+        dim = len(list(var.keys())[0])
+    except TypeError:
+        dim = 1
 
-    solver = results['Solver'][0]
-    solution = results['Solution'][1]
+    if dim == 1:
+        return list(var.values())
+    elif dim == 2:
+        keys = var.keys()
 
-    parameters = {k: v.extract_values() for k, v in model.__dict__.items()
-                  if isinstance(v, Param)}
+        num_rows = max(keys, key=lambda t: t[0])[0]
+        num_columns = max(keys, key=lambda t: t[1])[1]
 
+        matrix = [[0] * num_columns for _ in range(num_rows)]
+
+        for index, value in var.items():
+            x = index[0] - 1
+            y = index[1] - 1
+
+            matrix[x][y] = value
+
+        return matrix
+    else:
+        raise NotImplemented
+
+
+def get_variables(model):
     variables = {k: v for k, v in model.__dict__.items()
                  if isinstance(v, Var)}
 
@@ -65,8 +98,34 @@ def create_response(results, model):
             var = var.value
         else:
             var = var.get_values()
+            var = to_matrix(var)
 
         variables[key] = var
+
+    return variables
+
+
+def get_parameters(model):
+    parameters = {k: v for k, v in model.__dict__.items()
+                  if isinstance(v, Param)}
+
+    for key, var in parameters.items():
+        if hasattr(var, 'value'):
+            var = var.value
+        else:
+            var = var.extract_values()
+            var = to_matrix(var)
+
+        parameters[key] = var
+
+    return parameters
+
+
+def create_response(results, model):
+    results = results.json_repn()
+
+    solver = results['Solver'][0]
+    solution = results['Solution'][1]
 
     result = {
         'version': '0.1.0',
@@ -76,9 +135,16 @@ def create_response(results, model):
             'time': solver['Time'],
         },
         'solution': {
-            'total_cost': solution['Objective']['Total_Cost']['Value'],
+            'objective': {
+                'total_cost': solution['Objective']['Total_Cost']['Value'],
+            },
+            'variables': {},
         }
     }
+
+    variables = get_variables(model)
+    for key, value in variables.items():
+        result['solution']['variables'][key] = value
 
     validate(result, schema)
 
