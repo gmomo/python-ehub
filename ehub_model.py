@@ -8,6 +8,7 @@ import pyomo.environ  # used to find solvers
 
 from InputData import InputData
 from config import settings
+from data_formats import response_format
 
 
 class EHubModel:
@@ -393,4 +394,4 @@ class EHubModel:
         # in order to get the solutions found by the solver
         self._model.solutions.store_to(results)
 
-        return results
+        return response_format.create_response(results, self._model)
