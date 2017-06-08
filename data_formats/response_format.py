@@ -216,6 +216,7 @@ def create_response(results: SolverResults, model: Model) -> Dict[str, Any]:
             'parameters': _get_parameters(model),
             'param_or_var': _get_variable_parameters(model),
             'sets': _get_sets(model),
+            'parameters': {},
         }
     }
 
