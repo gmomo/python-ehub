@@ -1,6 +1,7 @@
 """
 Provides a class for encapsulating an energy hub model.
 """
+import functools
 
 from pyomo.core.base import (
     ConcreteModel, RangeSet, Set, Param, NonNegativeReals, Binary, Var, Reals,
@@ -23,6 +24,30 @@ BIG_M = 5000
 TIME_HORIZON = 20
 MAX_CARBON = 650000
 MAX_SOLAR_AREA = 500
+
+
+def constraint(*args):
+    """
+    Mark a function as a constraint of the model.
+
+    The function that adds these constraints to the model is
+    `_add_constraints_new`.
+
+    Args:
+        *args: The arguments that are passed to Pyomo's Constraint constructor
+
+    Returns:
+        The decorated function
+    """
+    def _wrapper(func):
+        functools.wraps(func)
+
+        func.is_constraint = True
+        func.args = args
+
+        return func
+
+    return _wrapper
 
 
 class EHubModel:
@@ -101,6 +126,230 @@ class EHubModel:
 
         self._model.total_cost_objective = Objective(rule=_rule, sense=minimize)
 
+    @constraint()
+    def calculate_total_cost(self, model):
+        cost = (model.investment_cost
+                + model.operating_cost
+                + model.maintenance_cost)
+        income = model.income_from_exports
+
+        return model.total_cost == cost - income
+
+    @constraint()
+    def calculate_total_carbon(self, model):
+        total_carbon = 0
+        for tech in model.technologies:
+            total_energy_imported = sum(model.energy_imported[t, tech]
+                                        for t in model.time)
+
+            total_carbon += (model.CARBON_FACTORS[tech]
+                             * total_energy_imported)
+
+        return model.total_carbon == total_carbon
+
+    @constraint()
+    def calculate_investment_cost(self, model):
+        storage_cost = sum(model.NET_PRESENT_VALUE_STORAGE[out]
+                           * model.LINEAR_STORAGE_COSTS[out]
+                           * model.storage_capacity[out]
+                           for out in model.energy_carrier)
+
+        tech_cost = sum(model.NET_PRESENT_VALUE_TECH[tech]
+                        * model.LINEAR_CAPITAL_COSTS[tech, out]
+                        * model.capacities[tech, out]
+                        # + (model.fixCapCosts[tech,out]
+                        # * model.Ytechnologies[tech,out])
+                        for tech in model.techs_without_grid
+                        for out in model.energy_carrier)
+
+        cost = tech_cost + storage_cost
+        return model.investment_cost == cost
+
+    @constraint()
+    def calculate_income_from_exports(self, model):
+        income = 0
+        for energy in model.energy_carrier:
+            total_energy_exported = sum(model.energy_exported[t, energy]
+                                        for t in model.time)
+
+            income += model.FEED_IN_TARIFFS[energy] * total_energy_exported
+
+        return model.income_from_exports == income
+
+    @constraint()
+    def calculate_maintenance_cost(self, model):
+        cost = 0
+        for t in model.time:
+            for tech in model.technologies:
+                for energy in model.energy_carrier:
+                    cost += (model.energy_imported[t, tech]
+                             * model.CONVERSION_EFFICIENCY[tech, energy]
+                             * model.OMV_COSTS[tech])
+
+        return model.maintenance_cost == cost
+
+    @constraint()
+    def calculate_operating_cost(self, model):
+        cost = 0
+        for tech in model.technologies:
+            total_energy_imported = sum(model.energy_imported[t, tech]
+                                        for t in model.time)
+
+            cost += model.OPERATING_PRICES[tech] * total_energy_imported
+
+        return model.operating_cost == cost
+
+    @constraint('time', 'energy_carrier')
+    def storage_capacity(self, model, t, out):
+        return model.E[t, out] <= model.storage_capacity[out]
+
+    @constraint('time', 'energy_carrier')
+    def storage_min_state(self, model, t, out):
+        rhs = model.storage_capacity[out] * model.MIN_STATE_OF_CHARGE[out]
+        return model.E[t, out] >= rhs
+
+    @constraint('time', 'energy_carrier')
+    def storage_discharge_rate(self, model, t, out):
+        rhs = model.MAX_DISCHARGE_RATE[out] * model.storage_capacity[out]
+        return model.energy_from_storage[t, out] <= rhs
+
+    @constraint('time', 'energy_carrier')
+    def storage_charge_rate(self, model, t, out):
+        rhs = model.MAX_CHARGE_RATE[out] * model.storage_capacity[out]
+        return model.energy_to_storage[t, out] <= rhs
+
+    @constraint('sub_time', 'energy_carrier')
+    def storage_balance(self, model, t, out):
+        lhs = model.E[t, out]
+
+        storage_standing_loss = model.STORAGE_STANDING_LOSSES[out]
+        discharge_rate = model.DISCHARGING_EFFICIENCY[out]
+        charge_rate = model.CHARGING_EFFICIENCY[out]
+        q_in = model.energy_to_storage[t, out]
+        q_out = model.energy_from_storage[t, out]
+
+        rhs = ((storage_standing_loss * model.E[(t - 1), out])
+               + (charge_rate * q_in)
+               - ((1 / discharge_rate) * q_out))
+        return lhs == rhs
+
+    @constraint('technologies', 'energy_carrier')
+    def fix_cost_constant(self, model, tech, out):
+        capacity = model.capacities[tech, out]
+        rhs = model.BIG_M * model.Ytechnologies[tech, out]
+        return capacity <= rhs
+
+    @constraint('roof_tech')
+    def roof_area(self, model, roof):
+        demands = range(1, self._data.demand_data.shape[1] + 1)
+
+        # DemandData.shape[1]
+        lhs = sum(model.capacities[roof, d] for d in demands)
+        rhs = model.MAX_SOLAR_AREA
+        return lhs <= rhs
+
+    @constraint('time', 'solar_techs', 'energy_carrier')
+    def solar_input(self, model, t, solar_tech, out):
+        conversion_rate = model.CONVERSION_EFFICIENCY[solar_tech, out]
+
+        if conversion_rate <= 0:
+            return Constraint.Skip
+
+        energy_imported = model.energy_imported[t, solar_tech]
+        capacity = model.capacities[solar_tech, out]
+
+        rhs = model.SOLAR_EM[t] * capacity
+
+        return energy_imported == rhs
+
+    @constraint('time', 'part_load', 'energy_carrier')
+    def part_load_u(self, model, t, disp, out):
+        conversion_rate = model.CONVERSION_EFFICIENCY[disp, out]
+
+        if conversion_rate <= 0:
+            return Constraint.Skip
+
+        energy_imported = model.energy_imported[t, disp]
+
+        lhs = energy_imported * conversion_rate
+        rhs = model.BIG_M * model.Yon[t, disp]
+
+        return lhs <= rhs
+
+    @constraint('time', 'part_load', 'energy_carrier')
+    def part_load_l(self, model, t, disp, out):
+        conversion_rate = model.CONVERSION_EFFICIENCY[disp, out]
+
+        if conversion_rate <= 0:
+            return Constraint.Skip
+
+        part_load = model.PART_LOAD[disp, out]
+        capacity = model.capacities[disp, out]
+        energy_imported = model.energy_imported[disp, out]
+
+        lhs = part_load * capacity
+
+        rhs = (energy_imported * conversion_rate
+               + model.BIG_M * (1 - model.Yon[t, disp]))
+        return lhs <= rhs
+
+    @constraint('technologies', 'energy_carrier')
+    def capacity(self, model, tech, out):
+        if model.CONVERSION_EFFICIENCY[tech, out] <= 0:
+            return model.capacities[tech, out] == 0
+
+        return Constraint.Skip
+
+    @constraint('disp_techs', 'energy_carrier')
+    def max_capacity(self, model, tech, out):
+        return model.capacities[tech, out] <= model.MAX_CAP_TECHS[tech]
+
+    @constraint('time', 'energy_carrier')
+    def loads_balance(self, model, t, out):
+        q_out = model.energy_from_storage[t, out]
+        q_in = model.energy_to_storage[t, out]
+        load = model.LOADS[t, out]
+        energy_exported = model.energy_exported[t, out]
+
+        lhs = load + energy_exported
+
+        energy_in = 0
+        for tech in model.technologies:
+            energy_imported = model.energy_imported[t, tech]
+            conversion_rate = model.CONVERSION_EFFICIENCY[tech, out]
+
+            energy_in += energy_imported * conversion_rate
+
+        rhs = (q_out - q_in) + energy_in
+
+        return lhs <= rhs
+
+    @constraint('time', 'technologies', 'energy_carrier')
+    def capacity_const(self, model, t, tech, output_type):
+        conversion_rate = model.CONVERSION_EFFICIENCY[tech, output_type]
+
+        if conversion_rate <= 0:
+            return Constraint.Skip
+
+        energy_imported = model.energy_imported[t, tech]
+        capacity = model.capacities[tech, output_type]
+
+        energy_in = energy_imported * conversion_rate
+
+        return energy_in <= capacity
+
+    def _add_constraints_new(self):
+        methods = [getattr(self, method)
+                   for method in dir(self)
+                   if callable(getattr(self, method))]
+        rules = (rule for rule in methods if hasattr(rule, 'is_constraint'))
+
+        for rule in rules:
+            name = rule.__name__ + '_constraint'
+            args = [getattr(self._model, arg) for arg in rule.args]
+
+            setattr(self._model, name, Constraint(*args, rule=rule))
+
     def _add_capacity_constraints(self):
         constraints = ConstraintList()
         for capacity in self._data.capacities:
@@ -114,36 +363,12 @@ class EHubModel:
         self._model.capacity_constraints = constraints
 
     def _add_constraints(self):
+        self._add_constraints_new()
         self._add_capacity_constraints()
-
-        # Global constraints
-        self._add_loads_balance_constraint()
-        self._add_capacity_const_constraint()
-        self._add_max_capacity_constraint()
-        self._add_capacity_constraint()
-
-        # Specific constraints
-        self._add_part_load_l_constraint()
-        self._add_part_load_u_constraint()
-        self._add_solar_input_constraint()
-        self._add_roof_area_constraint()
-        self._add_fix_cost_const_constraint()
 
         self._add_various_constraints()
 
-        self._add_storage_balance_constraint()
         self._add_unknown_storage_constraint()
-        self._add_storage_charge_rate_constraint()
-        self._add_storage_discharge_rate_constraint()
-        self._add_storage_min_state_constraint()
-        self._add_storage_cap_constraint()
-
-        self._add_operating_cost_constraint()
-        self._add_maintenance_cost_constraint()
-        self._add_income_from_exports_constraint()
-        self._add_investment_cost_constraint()
-        self._add_total_cost_constraint()
-        self._add_total_carbon_constraint()
 
     def _add_unknown_storage_constraint(self):
         data = self._data
@@ -179,277 +404,6 @@ class EHubModel:
                           <= model.MAX_CAP_TECHS[chp]
                           * model.Ytechnologies[chp, dd_0])
             model.con.add(constraint)
-
-    def _add_total_carbon_constraint(self):
-        def _rule(model):
-            total_carbon = 0
-            for tech in model.technologies:
-                total_energy_imported = sum(model.energy_imported[t, tech]
-                                            for t in model.time)
-
-                total_carbon += (model.CARBON_FACTORS[tech]
-                                 * total_energy_imported)
-
-            return model.total_carbon == total_carbon
-
-        self._model.total_carbon_constraint = Constraint(rule=_rule)
-
-    def _add_total_cost_constraint(self):
-        def _rule(model):
-            cost = (model.investment_cost
-                    + model.operating_cost
-                    + model.maintenance_cost)
-            income = model.income_from_exports
-
-            return model.total_cost == cost - income
-
-        self._model.total_cost_constraint = Constraint(rule=_rule)
-
-    def _add_investment_cost_constraint(self):
-        def _rule(model):
-            storage_cost = sum(model.NET_PRESENT_VALUE_STORAGE[out]
-                               * model.LINEAR_STORAGE_COSTS[out]
-                               * model.storage_capacity[out]
-                               for out in model.energy_carrier)
-
-            tech_cost = sum(model.NET_PRESENT_VALUE_TECH[tech]
-                            * model.LINEAR_CAPITAL_COSTS[tech, out]
-                            * model.capacities[tech, out]
-                            # + (model.fixCapCosts[tech,out]
-                            # * model.Ytechnologies[tech,out])
-                            for tech in model.techs_without_grid
-                            for out in model.energy_carrier)
-
-            cost = tech_cost + storage_cost
-            return model.investment_cost == cost
-
-        self._model.investment_cost_constraint = Constraint(rule=_rule)
-
-    def _add_income_from_exports_constraint(self):
-        def _rule(model):
-            income = 0
-            for energy in model.energy_carrier:
-                total_energy_exported = sum(model.energy_exported[t, energy]
-                                            for t in model.time)
-
-                income += model.FEED_IN_TARIFFS[energy] * total_energy_exported
-
-            return model.income_from_exports == income
-
-        self._model.income_from_exports_constraint = Constraint(rule=_rule)
-
-    def _add_maintenance_cost_constraint(self):
-        def _rule(model):
-            cost = 0
-            for t in model.time:
-                for tech in model.technologies:
-                    for energy in model.energy_carrier:
-                        cost += (model.energy_imported[t, tech]
-                                 * model.CONVERSION_EFFICIENCY[tech, energy]
-                                 * model.OMV_COSTS[tech])
-
-            return model.maintenance_cost == cost
-
-        self._model.maintenance_cost_constraint = Constraint(rule=_rule)
-
-    def _add_operating_cost_constraint(self):
-        def _rule(model):
-            cost = 0
-            for tech in model.technologies:
-                total_energy_imported = sum(model.energy_imported[t, tech]
-                                            for t in model.time)
-
-                cost += model.OPERATING_PRICES[tech] * total_energy_imported
-
-            return model.operating_cost == cost
-
-        self._model.operating_cost_constraint = Constraint(rule=_rule)
-
-    def _add_storage_cap_constraint(self):
-        def _rule(model, t, out):
-            return model.E[t, out] <= model.storage_capacity[out]
-
-        self._model.storage_capacity_constraint = Constraint(
-            self._model.time, self._model.energy_carrier, rule=_rule)
-
-    def _add_storage_min_state_constraint(self):
-        def _rule(model, t, out):
-            rhs = model.storage_capacity[out] * model.MIN_STATE_OF_CHARGE[out]
-            return model.E[t, out] >= rhs
-
-        self._model.storage_min_state_constraint = Constraint(
-            self._model.time, self._model.energy_carrier, rule=_rule)
-
-    def _add_storage_discharge_rate_constraint(self):
-        def _rule(model, t, out):
-            rhs = model.MAX_DISCHARGE_RATE[out] * model.storage_capacity[out]
-            return model.energy_from_storage[t, out] <= rhs
-
-        self._model.storage_discharge_rate_constraint = Constraint(
-            self._model.time, self._model.energy_carrier, rule=_rule)
-
-    def _add_storage_charge_rate_constraint(self):
-        def _rule(model, t, out):
-            rhs = model.MAX_CHARGE_RATE[out] * model.storage_capacity[out]
-            return model.energy_to_storage[t, out] <= rhs
-
-        self._model.storage_charge_rate_constraint = Constraint(
-            self._model.time, self._model.energy_carrier, rule=_rule)
-
-    def _add_storage_balance_constraint(self):
-        def _rule(model, t, out):
-            lhs = model.E[t, out]
-
-            storage_standing_loss = model.STORAGE_STANDING_LOSSES[out]
-            discharge_rate = model.DISCHARGING_EFFICIENCY[out]
-            charge_rate = model.CHARGING_EFFICIENCY[out]
-            q_in = model.energy_to_storage[t, out]
-            q_out = model.energy_from_storage[t, out]
-
-            rhs = ((storage_standing_loss * model.E[(t - 1), out])
-                   + (charge_rate * q_in)
-                   - ((1 / discharge_rate) * q_out))
-            return lhs == rhs
-
-        self._model.storage_balance_constraint = Constraint(
-            self._model.sub_time, self._model.energy_carrier, rule=_rule)
-
-    def _add_fix_cost_const_constraint(self):
-        def _rule(model, tech, out):
-            capacity = model.capacities[tech, out]
-            rhs = model.BIG_M * model.Ytechnologies[tech, out]
-            return capacity <= rhs
-
-        self._model.fix_cost_const_constraint = Constraint(
-            self._model.technologies, self._model.energy_carrier, rule=_rule)
-
-    def _add_roof_area_constraint(self):
-        demands = range(1, self._data.demand_data.shape[1] + 1)
-
-        def _rule(model, roof):
-            # DemandData.shape[1]
-            lhs = sum(model.capacities[roof, d] for d in demands)
-            rhs = model.MAX_SOLAR_AREA
-            return lhs <= rhs
-
-        self._model.roof_area_constraint = Constraint(self._model.roof_tech,
-                                                      rule=_rule)
-
-    def _add_solar_input_constraint(self):
-        def _rule(model, t, solar_tech, out):
-            conversion_rate = model.CONVERSION_EFFICIENCY[solar_tech, out]
-
-            if conversion_rate <= 0:
-                return Constraint.Skip
-
-            energy_imported = model.energy_imported[t, solar_tech]
-            capacity = model.capacities[solar_tech, out]
-
-            rhs = model.SOLAR_EM[t] * capacity
-
-            return energy_imported == rhs
-
-        self._model.solar_input_constraint = Constraint(
-            self._model.time, self._model.solar_techs,
-            self._model.energy_carrier, rule=_rule)
-
-    def _add_part_load_u_constraint(self):
-        def _rule(model, t, disp, out):
-            conversion_rate = model.CONVERSION_EFFICIENCY[disp, out]
-
-            if conversion_rate <= 0:
-                return Constraint.Skip
-
-            energy_imported = model.energy_imported[t, disp]
-
-            lhs = energy_imported * conversion_rate
-            rhs = model.BIG_M * model.Yon[t, disp]
-
-            return lhs <= rhs
-
-        self._model.part_load_u_constraint = Constraint(
-            self._model.time, self._model.part_load,
-            self._model.energy_carrier, rule=_rule)
-
-    def _add_part_load_l_constraint(self):
-        def _rule(model, t, disp, out):
-            conversion_rate = model.CONVERSION_EFFICIENCY[disp, out]
-
-            if conversion_rate <= 0:
-                return Constraint.Skip
-
-            part_load = model.PART_LOAD[disp, out]
-            capacity = model.capacities[disp, out]
-            energy_imported = model.energy_imported[disp, out]
-
-            lhs = part_load * capacity
-
-            rhs = (energy_imported * conversion_rate
-                   + model.BIG_M * (1 - model.Yon[t, disp]))
-            return lhs <= rhs
-
-        self._model.part_load_l_constraint = Constraint(
-            self._model.time, self._model.part_load,
-            self._model.energy_carrier, rule=_rule)
-
-    def _add_capacity_constraint(self):
-        def _rule(model, tech, out):
-            if model.CONVERSION_EFFICIENCY[tech, out] <= 0:
-                return model.capacities[tech, out] == 0
-
-            return Constraint.Skip
-
-        self._model.capacity_feasibility = Constraint(
-            self._model.technologies, self._model.energy_carrier, rule=_rule)
-
-    def _add_max_capacity_constraint(self):
-        def _rule(model, tech, out):
-            return model.capacities[tech, out] <= model.MAX_CAP_TECHS[tech]
-
-        self._model.max_capacity_constraint = Constraint(
-            self._model.disp_techs, self._model.energy_carrier, rule=_rule)
-
-    def _add_loads_balance_constraint(self):
-        def _rule(model, t, out):
-            q_out = model.energy_from_storage[t, out]
-            q_in = model.energy_to_storage[t, out]
-            load = model.LOADS[t, out]
-            energy_exported = model.energy_exported[t, out]
-
-            lhs = load + energy_exported
-
-            energy_in = 0
-            for tech in model.technologies:
-                energy_imported = model.energy_imported[t, tech]
-                conversion_rate = model.CONVERSION_EFFICIENCY[tech, out]
-
-                energy_in += energy_imported * conversion_rate
-
-            rhs = (q_out - q_in) + energy_in
-
-            return lhs <= rhs
-
-        self._model.loads_balance_constraint = Constraint(
-            self._model.time, self._model.energy_carrier, rule=_rule)
-
-    def _add_capacity_const_constraint(self):
-        def _rule(model, t, tech, output_type):
-            conversion_rate = model.CONVERSION_EFFICIENCY[tech, output_type]
-
-
-            if conversion_rate <= 0:
-                return Constraint.Skip
-
-            energy_imported = model.energy_imported[t, tech]
-            capacity = model.capacities[tech, output_type]
-
-            energy_in = energy_imported * conversion_rate
-
-            return energy_in <= capacity
-
-        self._model.capacity_const_constraint = Constraint(
-            self._model.time, self._model.technologies,
-            self._model.energy_carrier, rule=_rule)
 
     def _add_capacity_variables(self):
         for capacity in self._data.capacities:
