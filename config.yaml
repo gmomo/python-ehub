@@ -1,5 +1,5 @@
 # The file to use as input for the data
-input_file: "input_test.xlsx"
+input_file: "excel_files/input_test.xlsx"
 
 # The file to output the results in
 output_file: "output.txt"

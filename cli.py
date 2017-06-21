@@ -3,8 +3,8 @@ from contextlib import redirect_stdout
 
 import numpy as np
 
-from ehub_model import EHubModel
 from config import settings
+from energy_hub import EHubModel
 
 
 def pretty_print(results):
