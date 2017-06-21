@@ -7,3 +7,4 @@ numpy==1.12.1
 PyYAML==3.12
 xlrd==1.0.0
 jsonschema==2.6.0
+pylint
