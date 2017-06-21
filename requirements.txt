@@ -1,5 +1,6 @@
 # The required Python dependencies to be installed via
 #     pip install -r requirements.txt
+sh
 Pyomo==5.2
 pandas==0.20.1
 numpy==1.12.1
