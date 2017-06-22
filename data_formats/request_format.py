@@ -1,8 +1,21 @@
-from contextlib import suppress
+"""
+Provides functionality for handling the request format.
 
-from jsonschema import validate, ValidationError
+Examples:
 
-schema = {
+    If you want to validate a dictionary against the request format::
+
+    >>> from data_formats import request_format
+    >>> example = {}
+    >>> request_format.validate(example)
+    Traceback (most recent call last):
+        ...
+    data_formats.request_format.ValidationError
+"""
+
+import jsonschema
+
+SCHEMA = {
     'title': 'EHub Model Request Format',
     'description': 'A JSON Schema used to validate an incoming request to '
                    'solve a model',
@@ -128,6 +141,7 @@ schema = {
                             {
                                 'description': 'A reference to a capacity',
                                 'type': 'string',
+                                'default': '',
                             },
                             {
                                 'type': 'number',
@@ -411,8 +425,21 @@ schema = {
     'additionalProperties': False,
 }
 
-# Check that the schema does not contain any errors
-# A ValidationError is only thrown when the instance ({}) does not match the
-# schema.
-with suppress(ValidationError):
-    validate({}, schema)
+
+class RequestValidationError(Exception):
+    """The request format instance failed to validate against the SCHEMA."""
+
+
+def validate(instance: dict) -> None:
+    """Validate the instance against the schema.
+
+    Args:
+        instance: The potential instance of the schema
+
+    Raises:
+        ValidationError: the instance does not match the schema
+    """
+    try:
+        jsonschema.validate(instance, SCHEMA)
+    except jsonschema.ValidationError:
+        raise RequestValidationError from None
