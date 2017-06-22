@@ -1,419 +1,375 @@
+"""
+Provides functionality for handling the request format for using in the
+EHubModel.
+"""
+
+from collections import defaultdict
+from typing import List, Optional, Dict, TypeVar, Tuple
+
 import pandas as pd
 import numpy as np
-from itertools import compress
+
+from energy_hub.utils import cached_property
+from energy_hub import Converter, Stream, Storage, TimeSeries
+
+T = TypeVar('T')
+
+AXIS_ROWS = 0
+AXIS_COLUMNS = 1
 
 
 class InputData:
+    """Provides convenient access to needed data to implement an energy hub
+    model."""
 
-    def __init__(self, excel_path, demands='Demand data', solar='Solar data',
-                 tech='Technology', gen='General'):
-        self.path = excel_path
-        self.DemandSheet = demands
-        self.SolarSheet = solar
-        self.TechSheet = tech
-        self.GeneralSheet = gen
+    def __init__(self, request: dict) -> None:
+        """Create a new instance.
 
-        self.TechOutputs = None
-        self.Technologies = None
-        self.DemandData = None
-        self.StorageData = None
+        Args:
+            request: A dictionary in request format
+        """
+        self._request = request
 
-        self.Initialize()
+    def _get_capacity(self, name: str) -> Optional[dict]:
+        """Get the capacity in the request format with this name.
 
-    def Initialize(self):
-        self.TechParameters()
-        self.TechOutput()
-        self.Demanddata()
-        self.Storage()
+        Args:
+            name: The name of the capacity
 
-    def TechParameters(self):
-        Technologies = pd.read_excel(self.path, sheetname=self.TechSheet,
-                                     skiprows=1, index_col=0, skip_footer=38)  # technology characteristics
-        Technologies = Technologies.dropna(
-            axis=1, how='all')  # technology characteristics
-        Technologies = Technologies.fillna(0)  # technology characteristics
-        self.Technologies = Technologies
+        Returns:
+            Either the capacity in the request format or None
+        """
+        capacities = self._request['capacities']
 
-    def TechOutput(self):
-        TechOutputs = pd.read_excel(self.path, sheetname=self.TechSheet,
-                                    skiprows=15, index_col=0, skip_footer=26)  # Output matrix
-        TechOutputs = TechOutputs.dropna(axis=0, how='all')  # Output matrix
-        TechOutputs = TechOutputs.dropna(axis=1, how='all')  # Output matrix
-        self.TechOutputs = TechOutputs
+        for capacity in capacities:
+            if capacity['name'] == name:
+                return capacity
 
-    def Demanddata(self):
-        DemandDatas = pd.read_excel(self.path, sheetname=self.DemandSheet)
-        self.DemandData = DemandDatas
+        return None
 
-    def Storage(self):
-        Storage = pd.read_excel(
-            self.path, sheetname=self.TechSheet, skiprows=40, index_col=0, skip_footer=0)
-        Storage = Storage.dropna(axis=1, how='all')
-        Storage = Storage.fillna(0)
-        self.StorageData = Storage
+    @cached_property
+    def storages(self) -> List[Storage]:
+        """The list of storages."""
+        def _make(storage):
+            capacity = self._get_capacity(storage['capacity'])
 
-    # ----------------------------------------------------------------------
+            return Storage(storage, capacity)
 
-    def Dict1D(self, dataframe):
-        dict_var = {}
-        for i, vali in enumerate(dataframe.index):
-            dict_var[i + 1] = round(dataframe.iloc[i][1], 4)
-        return dict_var
+        return [_make(storage) for storage in self._request['storages']]
 
-    def Dict1D_val_index(self, dataframe):
-        dict_var = {}
-        for i, vali in enumerate(dataframe.index):
-            dict_var[vali] = round(dataframe.iloc[i][1], 4)
-        return dict_var
+    @cached_property
+    def converters(self) -> List[Converter]:
+        """The list of converters."""
+        def _make(converter):
+            capacity = self._get_capacity(converter['capacity'])
 
-    def DictND(self, dataframe):
-        dict_var = {}
-        for i, vali in enumerate(dataframe.index):
-            for j, valj in enumerate(dataframe.columns):
-                dict_var[vali, valj] = round(dataframe.iloc[i][j + 1], 4)
-        return dict_var
+            return Converter(converter, capacity)
 
-    # ----------------------------------------------------------------------
+        return [_make(converter) for converter in self._request['converters']]
 
-    def Demands(self):
-        Loads_init = self.DemandData
-        Loads_init.index = list(range(1, len(Loads_init.index) + 1))
-        Loads_init.columns = list(range(1, len(Loads_init.columns) + 1))
+    @cached_property
+    def time_series_list(self) -> List[TimeSeries]:
+        """The list of time series."""
+        return [TimeSeries(time_series)
+                for time_series in self._request['time_series']]
 
-        return self.DictND(Loads_init)
+    @cached_property
+    def streams(self) -> List[Stream]:
+        """The list of streams."""
+        return [Stream(stream, self._request)
+                for stream in self._request['streams']]
 
-    # ----------------------------------------------------------------------
+    @cached_property
+    def output_stream_names(self):
+        """The sorted list of output streams names."""
+        names = (output for tech in self.converters for output in tech.outputs)
 
-    def SolarData(self):
-        SolarData = pd.read_excel(self.path, sheetname=self.SolarSheet)
-        SolarData.columns = [1]
-        return self.Dict1D(SolarData)
+        return sorted(set(names))
 
-    # ----------------------------------------------------------------------
+    @cached_property
+    def demand_data(self) -> pd.DataFrame:
+        """The data for all demand streams as a matrix."""
+        demands = [demand for demand in self.time_series_list
+                   if demand.is_demand]
 
-    def CHP_list(self):
-        # find dispatch tech (CHP)
-        Dispatch_tech = pd.DataFrame(self.TechOutputs.sum(0))
-        CHP_setlist = []
-        for n, val in enumerate(Dispatch_tech[0]):
-            if val > 1:
-                # first is electricity +1 since it starts at 0
-                CHP_setlist.append(n + 2)
-        return CHP_setlist
+        test = pd.DataFrame()
+        for demand in demands:
+            name = demand.name
+            data = demand.data
 
-    # ----------------------------------------------------------------------
+            data = pd.DataFrame(data, index=range(len(data)), columns=[name])
+            test = pd.concat([test, data], axis=1)
 
-    def Roof_tech(self):
-        Roof_techset = []
-        for n, val in enumerate(self.Technologies.loc["Area (m2)"]):
-            if val > 0:
-                # first is electricity +1 since it starts at 0
-                Roof_techset.append(n + 2)
+        return test
 
-        return Roof_techset
+    @property
+    def demands(self) -> Dict[Tuple[int, int], float]:
+        """The data for all demands as a dictionary that is indexed by (time,
+        demand time series ID)."""
+        demands = [time_series for time_series in self.time_series_list
+                   if time_series.is_demand]
 
-    # ----------------------------------------------------------------------
+        return {(row, column): value
+                for column, demand in enumerate(demands, start=1)
+                for row, value in demand.pyomo_data.items()}
 
-    def cMatrix(self):
+    @cached_property
+    def solar_data(self) -> Dict[int, float]:
+        """The data for the solar time series as a dictionary that is indexed
+        by time."""
+        solar = [time_series for time_series in self.time_series_list
+                 if time_series.is_solar][0]  # Assume there is only one
 
-        # Based on the + - values, prepare data for generating coupling matrix
-        TechOutputs2 = self.TechOutputs.multiply(
-            np.array(self.Technologies.loc['Efficiency (%)']))
-        TechOutputs2.loc[TechOutputs2.index != 'Electricity'] = TechOutputs2.loc[TechOutputs2.index != 'Electricity'].multiply(
-            np.array(self.Technologies.loc['Output ratio'].fillna(value=1).replace(0, 1)))
-        TechOutputs2[TechOutputs2 < 0] = -1
+        return solar.pyomo_data
 
-        addGrid = np.zeros(len(self.DemandData.columns),)
-        addGrid[0] = 1  # add electricity to coupling matrix
-        Grid = pd.DataFrame(
-            addGrid, columns=["Grid"], index=self.DemandData.columns).transpose()
+    @cached_property
+    def chp_list(self) -> List[int]:
+        """The IDs of Combined Heat and Power converters."""
+        return [i for i, tech in enumerate(self.converters, start=1)
+                if tech.is_chp]
 
-        Cmatrix = TechOutputs2.transpose()
-        Cmatrix = pd.concat([Grid, Cmatrix])
-        Cmatrix.index = list(range(1, len(TechOutputs2.columns) + 2))
-        Cmatrix.columns = list(range(1, len(TechOutputs2.index) + 1))
+    @cached_property
+    def roof_tech(self) -> List[int]:
+        """The IDs of the converters that can be put on a roof."""
+        return [i for i, tech in enumerate(self.converters, start=1)
+                if tech.is_roof_tech]
 
-        return self.DictND(Cmatrix)
+    @property
+    def c_matrix(self) -> Dict[Tuple[int, int], float]:
+        """Return a dictionary-format for the C matrix.
 
-    # ----------------------------------------------------------------------
+        The keys are of the form (conveter ID, output stream ID).
+        """
+        tech_outputs = self.output_stream_names
 
-    def PartLoad(self):
-        PartLoad = self.Technologies.loc["MinLoad (%)", ] / 100
+        c_matrix = pd.DataFrame(0, index=range(1, len(self.converters) + 1),
+                                columns=tech_outputs, dtype=float)
+        for i, tech in enumerate(self.converters, start=1):
+            efficiency = tech.efficiency
+            output_ratio = tech.output_ratio
 
-        partload = self.TechOutputs.iloc[0:1].mul(list(PartLoad), axis=1)
-        partload = pd.concat(
-            [partload, self.TechOutputs.iloc[1:].mul(list(PartLoad), axis=1)], axis=0)
-        partload = partload.abs()
-        partload = partload.transpose()
-        partload.index = list(range(1 + 1, len(self.TechOutputs.columns) + 2))
-        partload.columns = list(range(1, len(self.TechOutputs.index) + 1))
-        SolartechsSets = list(compress(list(range(
-            1 + 1, len(self.Technologies.columns) + 2)), list(self.Technologies.loc["Area (m2)"] > 0)))
+            for input_ in tech.inputs:
+                # This is just to make it work
+                if input_ == 'Grid':
+                    c_matrix['Elec'][i] = -1
+            for output in tech.outputs:
+                if output == 'Elec':
+                    value = efficiency
+                else:
+                    value = efficiency * output_ratio
+                c_matrix[output][i] = value
 
-        for i in SolartechsSets:
-            partload.drop(i, inplace=True)
+        c_matrix.columns = range(1, len(c_matrix.columns) + 1)
 
-        return self.DictND(partload)
+        return {(row, col): value
+                for col, column in c_matrix.to_dict().items()
+                for row, value in column.items()}
 
-    # ----------------------------------------------------------------------
+    @cached_property
+    def solar_techs(self) -> List[int]:
+        """The IDs of the solar converters."""
+        return [i for i, tech in enumerate(self.converters, start=1)
+                if tech.is_solar]
 
-    def MaxCapacity(self):
-        MaxCap = self.Technologies.loc["Maximum Capacity", ]
-        MaxCap.index = list(
-            range(2, len(self.Technologies.loc["MinLoad (%)", ].index) + 2))
-        MaxCap.round(decimals=3)
-        maxCap = MaxCap.to_dict()
+    @cached_property
+    def part_load(self) -> Dict[Tuple[int, int], float]:
+        """Return the part load for each tech and each of its outputs."""
+        part_load_techs = [(i, tech)
+                           for i, tech in enumerate(self.converters, start=1)
+                           if not (tech.is_grid or tech.is_solar)]
+        output_streams = self.output_stream_names
 
-        SolartechsSets = list(compress(list(range(
-            1 + 1, len(self.Technologies.columns) + 2)), list(self.Technologies.loc["Area (m2)"] > 0)))
-        for i in SolartechsSets:
-            maxCap.pop(i, None)
+        part_load = defaultdict(float)  # type: Dict[Tuple[int, int], float]
+        for tech_index, tech in part_load_techs:
+            for output_index, output_stream in enumerate(output_streams, start=1):
+                if output_stream in tech.outputs:
+                    min_load = tech.min_load
+                    if min_load is not None:
+                        part_load[tech_index, output_index] = min_load
 
-        return maxCap
+        return part_load
 
-    # ----------------------------------------------------------------------
+    @cached_property
+    def max_capacity(self) -> Dict[int, float]:
+        """The max capacity of non-solar converter."""
+        return {i: tech.max_capacity
+                for i, tech in enumerate(self.converters, start=1)
+                if not (tech.is_grid or tech.is_solar)}
 
-    def SolarSet(self):
-        return list(compress(list(range(1 + 1, len(self.Technologies.columns) + 2)), list(self.Technologies.loc["Area (m2)"] > 0)))
+    @property
+    def disp_techs(self) -> List[int]:
+        """The IDs of the dispatch converters."""
+        return [i for i, tech in enumerate(self.converters, start=1)
+                if tech.is_dispatch]
 
-    def DispTechsSet(self):
-        return list(compress(list(range(1 + 1, len(self.Technologies.columns) + 2)), list(self.Technologies.loc["Area (m2)"] == 0)))
+    @property
+    def part_load_techs(self) -> List[int]:
+        """The IDs of the converters that have a part load."""
+        return [i for i, tech in enumerate(self.converters, start=1)
+                if tech.has_part_load]
 
-    def partloadtechs(self):
-        PartLoad = self.Technologies.loc["MinLoad (%)", ] / 100
+    @cached_property
+    def linear_cost(self) -> Dict[Tuple[int, int], float]:
+        """Return the linear cost for each tech and each of its outputs."""
+        output_streams = self.output_stream_names
 
-        partload = self.TechOutputs.iloc[0:1].mul(list(PartLoad), axis=1)
-        partload = pd.concat(
-            [partload, self.TechOutputs.iloc[1:].mul(list(PartLoad), axis=1)], axis=0)
-        partload = partload.abs()
-        partload = partload.transpose()
-        partload.index = list(range(1 + 1, len(self.TechOutputs.columns) + 2))
-        partload.columns = list(range(1, len(self.TechOutputs.index) + 1))
-        SolartechsSets = list(compress(list(range(
-            1 + 1, len(self.Technologies.columns) + 2)), list(self.Technologies.loc["Area (m2)"] > 0)))
+        linear_cost = {}
+        for row, tech in enumerate(self.converters, start=1):
+            for column, output_stream in enumerate(output_streams, start=1):
+                linear_cost[row, column] = 0.0
 
-        for i in SolartechsSets:
-            partload.drop(i, inplace=True)
+                # If the tech outputs electricity, remove the other costs.  No
+                # idea why this happens.
+                #
+                # Eg: If a tech outputs Elec and Heat, the linear cost is only
+                # set for Elec and not Heat.
+                if 'Elec' in tech.outputs and len(tech.outputs) > 1 and output_stream != 'Elec':
+                    continue
 
-        return list(partload.loc[partload.sum(axis=1) > 0].index)
+                capital_cost = tech.get_capital_cost(output_stream)
+                if capital_cost is not None:
+                    linear_cost[row, column] = capital_cost
 
-    # ----------------------------------------------------------------------
+        return linear_cost
 
-    def LinearCost(self):
-        LinearCost = self.Technologies.loc["CapCost (chf/kW)", ]
+    @cached_property
+    def dispatch_demands(self) -> np.ndarray:
+        """I have no idea what this is for."""
+        # Find which is the primary input for capacity
+        chp_techs = [tech for tech in self.converters if tech.is_chp]
 
-        linCost = self.TechOutputs.iloc[0:1].mul(list(LinearCost), axis=1)
-        linCost = pd.concat(
-            [linCost, self.TechOutputs.iloc[1:].mul(list(LinearCost), axis=1)], axis=0)
+        num_rows = len(chp_techs)
+        num_columns = len(self.output_stream_names)
+        dispatch_demands = np.zeros((num_rows, num_columns), dtype=int)
 
-        linCost = linCost.transpose()
-        for name in linCost.columns[1:]:
-            linCost.loc[linCost["Electricity"] > 1, name] = 0
-
-        linCost.loc[linCost["Electricity"] < 0, "Electricity"] = 0
-        linCost = linCost.abs()
-
-        addGrid = np.zeros(len(self.DemandData.columns),)
-        addGrid[0] = 1  # add electricity to coupling matrix
-        Grid = pd.DataFrame(
-            addGrid, columns=["Grid"], index=self.DemandData.columns).transpose()
-
-        linCost = pd.concat([Grid, linCost])
-
-        linCost.index = list(range(1, len(self.TechOutputs.columns) + 2))
-        linCost.columns = list(range(1, len(self.TechOutputs.index) + 1))
-        linCost.loc[1] = 0
-
-        return self.DictND(linCost)
-
-    # ----------------------------------------------------------------------
-    ### Find which is the primary input for capacity #####
-    def DisDemands(self):
-
-        CHPlist = self.CHP_list()
-        dispatch_demands = np.zeros((len(CHPlist), 2), dtype=int)
-
-        for n, val in enumerate(CHPlist):
-            counter = 0
-            for i, value in enumerate(np.array(self.TechOutputs.iloc[:, val - 2], dtype=int)):
-                if value > 0 and counter == 0:
-                    dispatch_demands[n, 0] = i + 1
-                    counter = 1
-                if value > 0 and counter == 1:
-                    dispatch_demands[n, 1] = i + 1
+        for row, chp_tech in enumerate(chp_techs):
+            for index, output in enumerate(self.output_stream_names, start=1):
+                if output in chp_tech.outputs:
+                    for col in range(index - 1, num_columns):
+                        dispatch_demands[row, col - 1] = index
 
         return dispatch_demands
 
-    # ----------------------------------------------------------------------
+    @cached_property
+    def interest_rate(self) -> float:
+        """The interest rate."""
+        return self._request['general']['interest_rate']
 
-    def InterestRate(self):
-        Interest_rate = pd.read_excel(
-            self.path, sheetname=self.GeneralSheet, skiprows=8, index_col=0, skip_footer=7)
-        Interest_rate = Interest_rate.dropna(axis=1, how='all')
-        Interest_rate_R = Interest_rate.loc["Interest Rate r"][0]
-        return Interest_rate_R
+    @cached_property
+    def life_time(self) -> Dict[int, float]:
+        """The life time of each converter."""
+        return {i: tech.lifetime
+                for i, tech in enumerate(self.converters, start=1)
+                if not tech.is_grid}
 
-    # ----------------------------------------------------------------------
+    def _calculate_npv(self, lifetime: float) -> float:
+        """Calculate the net present value of an asset giving its lifetime.
 
-    def LifeTime(self):
-        Life = pd.DataFrame(list(self.Technologies.loc["Lifetime (yr)"]))
-        Life.columns = [1]
-        Life.index = list(range(2, len(self.TechOutputs.columns) + 2))
+        Args:
+            lifetime: The lifetime of the asset
 
-        return self.Dict1D_val_index(Life)
+        Returns:
+            The net present value of the asset
+        """
+        r = self.interest_rate
 
-    # ----------------------------------------------------------------------
+        return 1 / (
+            ((1 + r)**lifetime - 1) / (r * (1 + r)**lifetime)
+        )
 
-    def NPV(self):
-        Interest_rate_R = self.InterestRate()
-        Life = pd.DataFrame(list(self.Technologies.loc["Lifetime (yr)"]))
-        Life.columns = [1]
-        Life.index = list(range(2, len(self.TechOutputs.columns) + 2))
+    @cached_property
+    def tech_npv(self) -> Dict[int, float]:
+        """The net present value of each converter."""
+        return {i: round(self._calculate_npv(tech.lifetime), 4)
+                for i, tech in enumerate(self.converters, start=1)
+                if not tech.is_grid}
 
-        NetPresentValue = 1 / (((1 + Interest_rate_R) ** Life - 1) /
-                               (Interest_rate_R * ((1 + Interest_rate_R) ** Life)))
+    @cached_property
+    def var_maintenance_cost(self) -> Dict[int, float]:
+        """The variable maintenance cost of each converter."""
+        return {i: tech.usage_maintenance_cost
+                for i, tech in enumerate(self.converters, start=1)}
 
-        return self.Dict1D_val_index(NetPresentValue)
+    @cached_property
+    def carb_factors(self) -> Dict[int, float]:
+        """The carbon factor of each converter."""
+        carbon_factors = {}
+        for i, tech in enumerate(self.converters, start=1):
+            input_ = tech.inputs[0]  # Assume only one input per tech
 
-    # ----------------------------------------------------------------------
+            for stream in self.streams:
+                if stream.name == input_:
+                    carbon_factors[i] = stream.co2
 
-    def VarMaintCost(self):
-        VarOMF = pd.DataFrame(list(self.Technologies.loc["OMVCost (chf/kWh)"]))
-        VarOMF.columns = [1]
-        VarOMF.index = list(range(1 + 1, len(self.TechOutputs.columns) + 2))
-        VarOMF.loc[1] = 0
+        return carbon_factors
 
-        return self.Dict1D_val_index(VarOMF)
+    @cached_property
+    def fuel_price(self) -> Dict[int, float]:
+        """ Returns the carbon price of each fuel. """
+        fuel_prices = {}
+        for i, tech in enumerate(self.converters, start=1):
+            input_ = tech.inputs[0]  # Assume only one input per tech
 
-    # ----------------------------------------------------------------------
+            for stream in self.streams:
+                if stream.name == input_:
+                    fuel_prices[i] = stream.price
 
-    def CarbFactors(self):
-        Carbon = pd.read_excel(
-            self.path, sheetname=self.TechSheet, skiprows=24, index_col=0, skip_footer=16)
-        Carbon = Carbon.dropna(axis=0, how='all')
-        Carbon = Carbon.dropna(axis=1, how='all')
-        Carbon.index = [1]
+        return fuel_prices
 
-        ElectricityCF = pd.read_excel(
-            self.path, sheetname=self.GeneralSheet, skiprows=1, index_col=0, skip_footer=14)
-        ElectricityCF = ElectricityCF.dropna(axis=0, how='all')
-        ElectricityCF = ElectricityCF.dropna(axis=1, how='all')
-        del ElectricityCF["Price (chf/kWh)"]
-        ElectricityCF.index = [1]
+    @cached_property
+    def feed_in(self) -> Dict[int, float]:
+        """The export price of each output stream."""
+        return {i: stream.export_price
+                for i, stream in enumerate(self.streams, start=1)
+                if stream.is_output}
 
-        CarbonFactors = pd.concat([ElectricityCF, Carbon], axis=1)
-        CarbonFactors.columns = list(range(1, len(CarbonFactors.columns) + 1))
-        CarbonFactors = CarbonFactors.transpose()
+    @cached_property
+    def storage_charge(self) -> Dict[int, float]:
+        """The maximum charge of each storage."""
+        return self._get_from_storages('max_charge')
 
-        return self.Dict1D(CarbonFactors)
+    @cached_property
+    def storage_discharge(self) -> Dict[int, float]:
+        """The maximum discharge of each storage."""
+        return self._get_from_storages('max_discharge')
 
-    # ----------------------------------------------------------------------
+    @cached_property
+    def storage_loss(self) -> Dict[int, float]:
+        """The decay of each storage."""
+        return self._get_from_storages('decay')
 
-    def FuelPrice(self):
-        Fuel = pd.read_excel(self.path, sheetname=self.GeneralSheet,
-                             skiprows=1, index_col=0, skip_footer=10)
-        Fuel = Fuel.dropna(axis=0, how='all')
+    @cached_property
+    def storage_ef_ch(self) -> Dict[int, float]:
+        """The charging efficiency of each storage."""
+        return self._get_from_storages('charge_efficiency')
 
-        Carbon = pd.read_excel(
-            self.path, sheetname=self.TechSheet, skiprows=24, index_col=0, skip_footer=16)
-        Carbon = Carbon.dropna(axis=0, how='all')
-        Carbon = Carbon.dropna(axis=1, how='all')
-        Carbon.index = [1]
+    @cached_property
+    def storage_ef_disch(self) -> Dict[int, float]:
+        """The discharging efficiency of each storage."""
+        return self._get_from_storages('discharge_efficiency')
 
-        ElectricityCF = pd.read_excel(
-            self.path, sheetname=self.GeneralSheet, skiprows=1, index_col=0, skip_footer=14)
-        ElectricityCF = ElectricityCF.dropna(axis=0, how='all')
-        ElectricityCF = ElectricityCF.dropna(axis=1, how='all')
-        del ElectricityCF["Price (chf/kWh)"]
-        ElectricityCF.index = [1]
+    @cached_property
+    def storage_min_soc(self) -> Dict[int, float]:
+        """The minimum state of charge of each storage."""
+        return self._get_from_storages('min_state')
 
-        CarbonFactors = pd.concat([ElectricityCF, Carbon], axis=1)
-        CarbonFactors.columns = list(range(1, len(CarbonFactors.columns) + 1))
-        CarbonFactors = CarbonFactors.transpose()
+    @cached_property
+    def storage_life(self) -> Dict[int, float]:
+        """The life time in years of each storage."""
+        return self._get_from_storages('lifetime')
 
-        for n, val in enumerate(Fuel["CO2 (kg/kWh)"]):
-            for index, value in CarbonFactors.iterrows():
-                if float(val) == float(value):
-                    CarbonFactors.loc[index] = float(
-                        Fuel["Price (chf/kWh)"][n])
+    @cached_property
+    def storage_lin_cost(self) -> Dict[int, float]:
+        """The linear cost of each storage."""
+        return self._get_from_storages('cost')
 
-        return self.Dict1D(CarbonFactors)
+    def _get_from_storages(self, attribute: str) -> Dict[int, T]:
+        """Return the attribute of each storage as a dictionary."""
+        return {i: getattr(storage, attribute)
+                for i, storage in enumerate(self.storages, start=1)}
 
-    # ----------------------------------------------------------------------
-
-    def FeedIn(self):
-        Tariff = pd.read_excel(
-            self.path, sheetname=self.GeneralSheet, skiprows=11, index_col=0,
-            skip_footer=0)
-        Tariff = Tariff.dropna(axis=0, how='all')
-        Tariff = Tariff.dropna(axis=1, how='all')
-        Tariff.columns = [1]
-        Tariff.index = list(range(1, len(self.DemandData.columns) + 1))
-
-        return self.Dict1D_val_index(Tariff)
-
-    #### Storage ####
-    # ----------------------------------------------------------------------
-
-    def StorageCh(self):
-        MaxCharge = pd.DataFrame(list(self.StorageData.loc["max_charge"]))
-        MaxCharge.columns = [1]
-
-        return self.Dict1D(MaxCharge)
-
-    def StorageDisch(self):
-        MaxDischarge = pd.DataFrame(
-            list(self.StorageData.loc["max_discharge"]))
-        MaxDischarge.columns = [1]
-
-        return self.Dict1D(MaxDischarge)
-
-    def StorageLoss(self):
-        losses = pd.DataFrame(list(self.StorageData.loc["decay"]))
-        losses.columns = [1]
-
-        return self.Dict1D(losses)
-
-    def StorageEfCh(self):
-        Ch_eff = pd.DataFrame(list(self.StorageData.loc["ch_eff"]))
-        Ch_eff.columns = [1]
-
-        return self.Dict1D(Ch_eff)
-
-    def StorageEfDisch(self):
-        Disch_eff = pd.DataFrame(list(self.StorageData.loc["disch_eff"]))
-        Disch_eff.columns = [1]
-
-        return self.Dict1D(Disch_eff)
-
-    def StorageMinSoC(self):
-        min_state = pd.DataFrame(list(self.StorageData.loc["min_state"]))
-        min_state.columns = [1]
-
-        return self.Dict1D(min_state)
-
-    def StorageLife(self):
-        LifeBattery = pd.DataFrame(
-            list(self.StorageData.loc["LifeBat (year)"]))
-        LifeBattery.columns = [1]
-
-        return self.Dict1D(LifeBattery)
-
-    def StorageLinCost(self):
-        LinearCostStorage = pd.DataFrame(
-            list(self.StorageData.loc["CostBat (chf/kWh)"]))
-        LinearCostStorage.columns = [1]
-
-        return self.Dict1D(LinearCostStorage)
-
-    def StorageNPV(self):
-        Interest_rate_R = self.InterestRate()
-
-        LifeBattery = pd.DataFrame(
-            list(self.StorageData.loc["LifeBat (year)"]))
-        LifeBattery.columns = [1]
-
-        NetPresentValueStorage = 1 / (((1 + Interest_rate_R) ** LifeBattery - 1) / (
-            Interest_rate_R * ((1 + Interest_rate_R) ** LifeBattery)))
-
-        return self.Dict1D(NetPresentValueStorage)
+    @cached_property
+    def storage_npv(self) -> Dict[int, float]:
+        """The net present value of each storage."""
+        return {i: self._calculate_npv(storage.lifetime)
+                for i, storage in enumerate(self.storages, start=1)}
