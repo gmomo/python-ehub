@@ -8,7 +8,7 @@ import numpy as np
 from config import settings
 from energy_hub.ehub_model import EHubModel
 
-TEST_INPUT_FILE = "General_input_new_simple.xlsx"
+TEST_INPUT_FILE = "excel_files/General_input_new_simple.xlsx"
 # There is only the total_cost, but there could be more things we can check
 # to make sure nothing happens in refactorings.
 TEST_OUTPUT = {
