@@ -1,9 +1,25 @@
-from contextlib import suppress
+"""
+Provides functionality for handling the response format.
 
-from jsonschema import validate, ValidationError
-from pyomo.core.base import Param, Var
+Examples:
 
-schema = {
+    If you want to validate a dictionary against the response format::
+
+    >>> from data_formats import response_format
+    >>> example = {}
+    >>> response_format.validate(example)
+    Traceback (most recent call last):
+        ...
+    data_formats.response_format.ValidationError
+"""
+
+from typing import Dict, Any, List, Union
+
+import jsonschema
+from pyomo.core.base import Param, Var, Model
+from pyomo.opt import SolverResults
+
+SCHEMA = {
     'type': 'object',
     'properties': {
         'version': {
@@ -54,14 +70,27 @@ schema = {
     'additionalProperties': False,
 }
 
-# Check that the schema does not contain any errors
-# A ValidationError is only thrown when the instance ({}) does not match the
-# schema.
-with suppress(ValidationError):
-    validate({}, schema)
+
+class ResponseValidationError(Exception):
+    """The instance failed to validate against the SCHEMA."""
 
 
-def to_matrix(var):
+def validate(instance: dict) -> None:
+    """Validate the instance against the schema.
+
+    Args:
+        instance: The potential instance of the schema
+
+    Raises:
+        ValidationError: the instance does not match the schema
+    """
+    try:
+        jsonschema.validate(instance, SCHEMA)
+    except jsonschema.ValidationError:
+        raise ResponseValidationError from None
+
+
+def _to_matrix(var: Any) -> Union[List[Any], List[List[Any]]]:
     # Determine the dimension of the matrix
     try:
         dim = len(list(var.keys())[0])
@@ -79,49 +108,46 @@ def to_matrix(var):
         matrix = [[0] * num_columns for _ in range(num_rows)]
 
         for index, value in var.items():
-            x = index[0] - 1
-            y = index[1] - 1
+            row = index[0] - 1
+            col = index[1] - 1
 
-            matrix[x][y] = value
+            matrix[row][col] = value
 
         return matrix
     else:
-        raise NotImplemented
+        raise NotImplementedError
 
 
-def get_variables(model):
-    variables = {k: v for k, v in model.__dict__.items()
-                 if isinstance(v, Var)}
+def _get_value(attribute: Union[Var, Param]) -> Any:
+    if hasattr(attribute, 'value'):
+        return attribute.value
+    elif hasattr(attribute, 'get_values'):
+        return _to_matrix(attribute.get_values())
+    elif hasattr(attribute, 'extract_values'):
+        return _to_matrix(attribute.extract_values())
 
-    for key, var in variables.items():
-        if hasattr(var, 'value'):
-            var = var.value
-        else:
-            var = var.get_values()
-            var = to_matrix(var)
-
-        variables[key] = var
-
-    return variables
+    return None
 
 
-def get_parameters(model):
-    parameters = {k: v for k, v in model.__dict__.items()
-                  if isinstance(v, Param)}
-
-    for key, var in parameters.items():
-        if hasattr(var, 'value'):
-            var = var.value
-        else:
-            var = var.extract_values()
-            var = to_matrix(var)
-
-        parameters[key] = var
-
-    return parameters
+def _get_variables(model: Model) -> Dict[str, Any]:
+    return {name: _get_value(variable)
+            for name, variable in model.__dict__.items()
+            if isinstance(variable, Var)}
 
 
-def create_response(results, model):
+def _get_parameters(model: Model) -> Dict[str, Any]:
+    return {name: _get_value(parameter)
+            for name, parameter in model.__dict__.items()
+            if isinstance(parameter, Param)}
+
+
+def create_response(results: SolverResults, model: Model) -> Dict[str, Any]:
+    """Create a new response format dictionary.
+
+    Args:
+        results: The results outputed by Pyomo
+        model: The model that was used by Pyomo to generate results
+    """
     results = results.json_repn()
 
     solver = results['Solver'][0]
@@ -136,16 +162,16 @@ def create_response(results, model):
         },
         'solution': {
             'objective': {
-                'total_cost': solution['Objective']['Total_Cost']['Value'],
+                'total_cost': solution['Objective']['total_cost_objective']['Value'],
             },
             'variables': {},
         }
     }
 
-    variables = get_variables(model)
+    variables = _get_variables(model)
     for key, value in variables.items():
         result['solution']['variables'][key] = value
 
-    validate(result, schema)
+    validate(result)
 
     return result
