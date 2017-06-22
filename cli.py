@@ -1,3 +1,17 @@
+"""
+The CLI for the EHub Model.
+
+The options for running the model are set in the config.yaml file. See that
+file for more information.
+
+Given the config.yaml file, solving the model is easy:
+
+    $ python3.6 cli.py
+
+The program will then print out the solved variables as well as show the
+output of whatever solver is configured in the config.yaml file.
+"""
+
 from collections import OrderedDict
 from contextlib import redirect_stdout
 
@@ -7,7 +21,12 @@ from config import settings
 from energy_hub import EHubModel
 
 
-def pretty_print(results):
+def pretty_print(results: dict) -> None:
+    """Print the results in a prettier format.
+
+    Args:
+        results: The results dictionary to print
+    """
     np.set_printoptions(linewidth=1000, suppress=True)
 
     version = results['version']
@@ -39,14 +58,15 @@ def pretty_print(results):
 
 
 def main():
+    """The main function for the CLI."""
     model = EHubModel(excel=settings["input_file"])
 
     results = model.solve()
 
     pretty_print(results)
 
-    with open(settings["output_file"], 'w') as f:
-        with redirect_stdout(f):
+    with open(settings["output_file"], 'w') as file:
+        with redirect_stdout(file):
             pretty_print(results)
 
 
