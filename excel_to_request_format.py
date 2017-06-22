@@ -177,11 +177,11 @@ class _NewFormatConverter(Converter):
              min_load, inputs, outputs) = column
 
             converter = {
-                'name': name,
+                'name': name.strip(),
                 'efficiency': float(efficiency),
             }
 
-            if capacity:
+            if capacity is not None:
                 try:
                     capacity = int(capacity)
                 except ValueError:
@@ -190,31 +190,33 @@ class _NewFormatConverter(Converter):
 
                 converter['capacity'] = capacity
 
-            if capital_cost:
+            with suppress(ValueError):
                 converter['capital_cost'] = float(capital_cost)
 
-            if annual_maintenance_cost:
+            with suppress(ValueError):
                 annual_maintenance_cost = float(annual_maintenance_cost)
                 converter['annual_maintenance_cost'] = annual_maintenance_cost
 
-            if usage_maintenance_cost:
+            with suppress(ValueError):
                 usage_maintenance_cost = float(usage_maintenance_cost)
                 converter['usage_maintenance_cost'] = usage_maintenance_cost
 
-            if lifetime:
+            with suppress(ValueError):
                 converter['lifetime'] = float(lifetime)
 
-            if output_ratio:
+            with suppress(ValueError):
                 converter['output_ratio'] = float(output_ratio)
 
-            if min_load:
+            with suppress(ValueError):
                 converter['min_load'] = float(min_load)
 
             if inputs:
-                converter['inputs'] = inputs.split(',')
+                converter['inputs'] = [in_.strip()
+                                       for in_ in inputs.split(',')]
 
             if outputs:
-                converter['outputs'] = outputs.split(',')
+                converter['outputs'] = [output.strip()
+                                        for output in outputs.split(',')]
 
             converters.append(converter)
 
@@ -223,7 +225,7 @@ class _NewFormatConverter(Converter):
     def _get_storages(self):
         storages = []
         for column in self._get_columns('Storages'):
-            (name, stream, __, cost, lifetime, charge_efficiency,
+            (name, stream, capacity, cost, lifetime, charge_efficiency,
              discharge_efficiency, decay, max_charge, max_discharge,
              min_state) = column
 
@@ -239,6 +241,13 @@ class _NewFormatConverter(Converter):
                 'max_discharge': float(max_discharge),
                 'min_state': float(min_state),
             }
+
+            try:
+                capacity = int(capacity)
+            except ValueError:
+                # References a capacity
+                capacity = str(capacity)
+            storage['capacity'] = capacity
 
             storages.append(storage)
 
@@ -273,7 +282,7 @@ class _NewFormatConverter(Converter):
                 'type': series_type,
                 'stream': stream,
                 'units': units,
-                'data': [int(d) for d in data if d],
+                'data': [float(d) for d in data if d is not None],
             }
 
             if source:
@@ -374,7 +383,7 @@ def main():
     content = convert(args.excel_file)
 
     # Ensure the format is correct
-    jsonschema.validate(content, request_format.schema)
+    jsonschema.validate(content, request_format.SCHEMA)
 
     with open(args.output_file, 'w') as file:
         file.write(json.dumps(content))
