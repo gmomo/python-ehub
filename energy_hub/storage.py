@@ -19,6 +19,15 @@ class Storage:
         self._capacity = capacity_request
 
     @property
+    def name(self):
+        return self._storage['name']
+
+    @property
+    def stream(self) -> str:
+        """The stream that this storage holds."""
+        return self._storage['stream']
+
+    @property
     def min_state(self) -> float:
         """The minimum state of charge of the storage."""
         return self._storage['min_state']

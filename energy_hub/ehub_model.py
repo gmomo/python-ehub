@@ -2,6 +2,7 @@
 Provides a class for encapsulating an energy hub model.
 """
 import functools
+from typing import List, Tuple
 
 from pyomo.core.base import (
     ConcreteModel, RangeSet, Set, Param, NonNegativeReals, Binary, Var, Reals,
@@ -16,6 +17,7 @@ import pyomo.environ
 
 import excel_to_request_format
 from data_formats import response_format
+from energy_hub import Storage
 from energy_hub.input_data import InputData
 from config import SETTINGS
 
@@ -100,7 +102,9 @@ class EHubModel:
         model.techs_without_grid = RangeSet(2, len(data.converters),
                                             within=model.technologies)
 
+        model.storages = RangeSet(1, len(data.storages))
         model.energy_carrier = RangeSet(1, num_demands)
+        model.demands = RangeSet(1, num_demands)
 
         model.techs = Set(initialize=data.max_capacity.keys(),
                           within=model.technologies)
@@ -164,10 +168,10 @@ class EHubModel:
         Args:
             model: The Pyomo model
         """
-        storage_cost = sum(model.NET_PRESENT_VALUE_STORAGE[out]
-                           * model.LINEAR_STORAGE_COSTS[out]
-                           * model.storage_capacity[out]
-                           for out in model.energy_carrier)
+        storage_cost = sum(model.NET_PRESENT_VALUE_STORAGE[storage]
+                           * model.LINEAR_STORAGE_COSTS[storage]
+                           * model.storage_capacity[storage]
+                           for storage in model.storages)
 
         tech_cost = sum(model.NET_PRESENT_VALUE_TECH[tech]
                         * model.LINEAR_CAPITAL_COSTS[tech, out]
@@ -236,93 +240,99 @@ class EHubModel:
         return model.operating_cost == cost
 
     @staticmethod
-    @constraint('time', 'energy_carrier')
-    def storage_capacity(model, t, out):
+    @constraint('time', 'storages')
+    def storage_capacity(model, t, storage):
         """
         Ensure the storage level is below the storage's capacity.
 
         Args:
             model: The Pyomo model
-            t: The time step
-            out: The output energy stream
+            t: A time step
+            storage: A storage
         """
-        return model.storage_level[t, out] <= model.storage_capacity[out]
+        storage_level = model.storage_level[t, storage]
+        storage_capacity = model.storage_capacity[storage]
+
+        return storage_level <= storage_capacity
 
     @staticmethod
-    @constraint('time', 'energy_carrier')
-    def storage_min_state(model, t, out):
+    @constraint('time', 'storages')
+    def storage_min_state(model, t, storage):
         """
         Ensure the storage level is above it's minimum level.\
 
         Args:
             model: The Pyomo model
-            t: The time step
-            out: The output energy stream
+            t: A time step
+            storage: A storage
         """
-        storage_capacity = model.storage_capacity[out]
-        min_soc = model.MIN_STATE_OF_CHARGE[out]
-        storage_level = model.storage_level[t, out]
+        storage_capacity = model.storage_capacity[storage]
+        min_soc = model.MIN_STATE_OF_CHARGE[storage]
+        storage_level = model.storage_level[t, storage]
 
         min_storage_level = storage_capacity * min_soc
 
         return min_storage_level <= storage_level
 
     @staticmethod
-    @constraint('time', 'energy_carrier')
-    def storage_discharge_rate(model, t, out):
+    @constraint('time', 'storages')
+    def storage_discharge_rate(model, t, storage):
         """
         Ensure the discharge rate of a storage is below it's maximum rate.
 
         Args:
             model: The Pyomo model
-            t: The time instance
-            out: The output energy stream
+            t: A time step
+            storage: A storage
         """
-        max_discharge_rate = model.MAX_DISCHARGE_RATE[out]
-        storage_capacity = model.storage_capacity[out]
-        discharge_rate = model.energy_from_storage[t, out]
+        max_discharge_rate = model.MAX_DISCHARGE_RATE[storage]
+        storage_capacity = model.storage_capacity[storage]
+        discharge_rate = model.energy_from_storage[t, storage]
 
         max_rate = max_discharge_rate * storage_capacity
 
         return discharge_rate <= max_rate
 
     @staticmethod
-    @constraint('time', 'energy_carrier')
-    def storage_charge_rate(model, t, out):
+    @constraint('time', 'storages')
+    def storage_charge_rate(model, t, storage):
         """
         Ensure the charge rate of a storage is below it's maximum rate.
 
         Args:
             model: The Pyomo model
-            t: The time step
-            out: The output energy stream
+            t: A time step
+            storage: A storage
         """
-        max_charge_rate = model.MAX_CHARGE_RATE[out]
-        storage_capacity = model.storage_capacity[out]
-        charge_rate = model.energy_to_storage[t, out]
+        max_charge_rate = model.MAX_CHARGE_RATE[storage]
+        storage_capacity = model.storage_capacity[storage]
+        charge_rate = model.energy_to_storage[t, storage]
 
         max_rate = max_charge_rate * storage_capacity
 
         return charge_rate <= max_rate
 
     @staticmethod
-    @constraint('sub_time', 'energy_carrier')
-    def storage_balance(model, t, out):
+    @constraint('sub_time', 'storages')
+    def storage_balance(model, t, storage):
         """
         Calculate the current storage level from the previous level.
 
         Args:
             model: The Pyomo model
-            t: The time step
-            out: The storage
+            t: A time step
+            storage: A storage
         """
-        current_storage_level = model.storage_level[t, out]
-        storage_standing_loss = model.STORAGE_STANDING_LOSSES[out]
-        discharge_rate = model.DISCHARGING_EFFICIENCY[out]
-        charge_rate = model.CHARGING_EFFICIENCY[out]
-        q_in = model.energy_to_storage[t, out]
-        q_out = model.energy_from_storage[t, out]
-        previous_storage_level = model.storage_level[t - 1, out]
+        current_storage_level = model.storage_level[t, storage]
+        previous_storage_level = model.storage_level[t - 1, storage]
+
+        storage_standing_loss = model.STORAGE_STANDING_LOSSES[storage]
+
+        discharge_rate = model.DISCHARGING_EFFICIENCY[storage]
+        charge_rate = model.CHARGING_EFFICIENCY[storage]
+
+        q_in = model.energy_to_storage[t, storage]
+        q_out = model.energy_from_storage[t, storage]
 
         calculated_level = (
             (storage_standing_loss * previous_storage_level)
@@ -456,30 +466,65 @@ class EHubModel:
         """
         return model.capacities[tech, out] <= model.MAX_CAP_TECHS[tech]
 
-    @staticmethod
-    @constraint('time', 'energy_carrier')
-    def loads_balance(model, t, out):
+    def _get_stream_from_storage(self, storage_index: int) -> int:
+        """
+        Get the index of the storage's stream.
+
+        Args:
+            storage_index: The index of the storage
+
+        Returns:
+            The index of the storage's stream
+
+        Raises:
+            ValueError: There is no index for the stream's storage
+        """
+        storage = self._data.storages[storage_index - 1]
+        stream_names = [stream.name for stream in self._data.streams]
+
+        try:
+            # Pyomo uses 1-based indexing
+            return stream_names.index(storage.stream) + 1
+        except ValueError:
+            raise ValueError(
+                f'There is no stream "{storage.stream}" in the streams '
+                f'section for "{storage.name}".'
+            ) from None
+
+    def _get_storages_from_stream(self, out: int) -> List[Tuple[int, Storage]]:
+        stream_name = self._data.time_series_list[out - 1].stream
+
+        return [(i, storage)
+                for i, storage in enumerate(self._data.storages, start=1)
+                if storage.stream == stream_name]
+
+    @constraint('time', 'demands')
+    def loads_balance(self, model, t, demand):
         """
         Args:
             model: The Pyomo model
             t: A time step
-            out:
+            demand: An output stream
         """
-        q_out = model.energy_from_storage[t, out]
-        q_in = model.energy_to_storage[t, out]
-        load = model.LOADS[t, out]
-        energy_exported = model.energy_exported[t, out]
+        load = model.LOADS[t, demand]
+        energy_exported = model.energy_exported[t, demand]
 
         lhs = load + energy_exported
+
+        total_q_out = 0
+        total_q_in = 0
+        for i, _ in self._get_storages_from_stream(demand):
+            total_q_in += model.energy_to_storage[t, i]
+            total_q_out += model.energy_from_storage[t, i]
 
         energy_in = 0
         for tech in model.technologies:
             energy_imported = model.energy_imported[t, tech]
-            conversion_rate = model.CONVERSION_EFFICIENCY[tech, out]
+            conversion_rate = model.CONVERSION_EFFICIENCY[tech, demand]
 
             energy_in += energy_imported * conversion_rate
 
-        rhs = (q_out - q_in) + energy_in
+        rhs = (total_q_out - total_q_in) + energy_in
 
         return lhs <= rhs
 
@@ -547,10 +592,12 @@ class EHubModel:
 
         model.StorCon = ConstraintList()
         for i in range(1, data.demand_data.shape[1] + 1):
-            # 8760 I believe is the last entry in the table - 1
             last_entry = model.time.last()
-            model.StorCon.add(model.storage_level[1, i]
-                              == model.storage_level[last_entry, i])
+
+            start_level = model.storage_level[1, i]
+            end_level = model.storage_level[last_entry, 1]
+
+            model.StorCon.add(start_level == end_level)
 
     def _add_various_constraints(self):
         data = self._data
@@ -612,15 +659,15 @@ class EHubModel:
         model.total_carbon = Var(domain=Reals)
 
         # Storage variables
-        model.energy_to_storage = Var(model.time, model.energy_carrier,
+        model.energy_to_storage = Var(model.time, model.storages,
                                       domain=NonNegativeReals)
-        model.energy_from_storage = Var(model.time, model.energy_carrier,
+        model.energy_from_storage = Var(model.time, model.storages,
                                         domain=NonNegativeReals)
 
-        model.storage_level = Var(model.time, model.energy_carrier,
+        model.storage_level = Var(model.time, model.storages,
                                   domain=NonNegativeReals)
 
-        model.storage_capacity = Var(model.energy_carrier,
+        model.storage_capacity = Var(model.storages,
                                      domain=NonNegativeReals)
 
     def _add_parameters(self):
@@ -635,17 +682,17 @@ class EHubModel:
         model.MAX_CAP_TECHS = Param(model.disp_techs,
                                     initialize=data.max_capacity)
 
-        model.MAX_CHARGE_RATE = Param(model.energy_carrier,
+        model.MAX_CHARGE_RATE = Param(model.storages,
                                       initialize=data.storage_charge)
-        model.MAX_DISCHARGE_RATE = Param(model.energy_carrier,
+        model.MAX_DISCHARGE_RATE = Param(model.storages,
                                          initialize=data.storage_discharge)
-        model.STORAGE_STANDING_LOSSES = Param(model.energy_carrier,
+        model.STORAGE_STANDING_LOSSES = Param(model.storages,
                                               initialize=data.storage_loss)
-        model.CHARGING_EFFICIENCY = Param(model.energy_carrier,
+        model.CHARGING_EFFICIENCY = Param(model.storages,
                                           initialize=data.storage_ef_ch)
-        model.DISCHARGING_EFFICIENCY = Param(model.energy_carrier,
+        model.DISCHARGING_EFFICIENCY = Param(model.storages,
                                              initialize=data.storage_ef_disch)
-        model.MIN_STATE_OF_CHARGE = Param(model.energy_carrier,
+        model.MIN_STATE_OF_CHARGE = Param(model.storages,
                                           initialize=data.storage_min_soc)
         # PartloadInput
         model.PART_LOAD = Param(model.technologies, model.energy_carrier,
@@ -661,7 +708,7 @@ class EHubModel:
         model.LINEAR_CAPITAL_COSTS = Param(model.technologies,
                                            model.energy_carrier,
                                            initialize=data.linear_cost)
-        model.LINEAR_STORAGE_COSTS = Param(model.energy_carrier,
+        model.LINEAR_STORAGE_COSTS = Param(model.storages,
                                            initialize=data.storage_lin_cost)
         # Operating prices technologies
         model.OPERATING_PRICES = Param(model.technologies,
@@ -684,19 +731,20 @@ class EHubModel:
         model.MAX_SOLAR_AREA = Param(initialize=MAX_SOLAR_AREA)
 
         # loads
-        model.LOADS = Param(model.time, model.energy_carrier,
+        model.LOADS = Param(model.time, model.demands,
                             initialize=data.demands)
         model.SOLAR_EM = Param(model.time, initialize=data.solar_data)
 
         model.NET_PRESENT_VALUE_TECH = Param(model.technologies,
                                              domain=NonNegativeReals,
                                              initialize=data.tech_npv)
-        model.NET_PRESENT_VALUE_STORAGE = Param(model.energy_carrier,
+        model.NET_PRESENT_VALUE_STORAGE = Param(model.storages,
                                                 domain=NonNegativeReals,
                                                 initialize=data.storage_npv)
 
     def solve(self):
-        """Solve the model.
+        """
+        Solve the model.
 
         Returns:
             The results
