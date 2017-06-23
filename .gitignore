@@ -1,10 +1,16 @@
+# Python
 __pycache__/
-.~lock*
-*.rar
+*.pckl
 
+# PyCharm
 .idea/
-*.pdf
+
+# Generated Files
 out.txt
 output.txt
-*.pckl
+
+# Other
+.~lock*
+*.rar
+*.pdf
 *.png
