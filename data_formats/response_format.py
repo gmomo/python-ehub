@@ -16,7 +16,7 @@ Examples:
 from typing import Dict, Any, List, Union
 
 import jsonschema
-from pyomo.core.base import Param, Var, Model
+from pyomo.core.base import Param, Var, Model, Constraint
 from pyomo.opt import SolverResults
 
 SCHEMA = {
@@ -141,6 +141,13 @@ def _get_parameters(model: Model) -> Dict[str, Any]:
             if isinstance(parameter, Param)}
 
 
+def _get_constraints(model: Model) -> Dict[str, str]:
+    return {name: str(constraint.expr)
+            for name, constraint in model.__dict__.items()
+            if isinstance(constraint, Constraint)
+            and hasattr(constraint, 'expr')}
+
+
 def create_response(results: SolverResults, model: Model) -> Dict[str, Any]:
     """Create a new response format dictionary.
 
@@ -164,13 +171,11 @@ def create_response(results: SolverResults, model: Model) -> Dict[str, Any]:
             'objective': {
                 'total_cost': solution['Objective']['total_cost_objective']['Value'],
             },
-            'variables': {},
+            'variables': _get_variables(model),
+            'parameters': _get_parameters(model),
+            'constraints': _get_constraints(model),
         }
     }
-
-    variables = _get_variables(model)
-    for key, value in variables.items():
-        result['solution']['variables'][key] = value
 
     validate(result)
 
