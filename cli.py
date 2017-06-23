@@ -21,6 +21,25 @@ from config import settings
 from energy_hub import EHubModel
 
 
+def print_section(section_name: str, solution_section: dict) -> None:
+    """
+    Print all the attributes with a heading.
+
+    Args:
+        section_name: The heading
+        solution_section: The dictionary with all the attributes
+    """
+    half_heading = '=' * 10
+    print(f"\n{half_heading} {section_name} {half_heading}")
+
+    attributes = OrderedDict(sorted(solution_section.items()))
+    for name, value in attributes.items():
+        if isinstance(value, list):
+            value = np.array(value)
+
+        print("\n{}: \n{}".format(name, value))
+
+
 def pretty_print(results: dict) -> None:
     """Print the results in a prettier format.
 
@@ -39,22 +58,10 @@ def pretty_print(results: dict) -> None:
     print("termination condition: {}".format(solver['termination_condition']))
 
     print("Solution")
-
-    print("Objective")
-    objectives = results['solution']['objective']
-    objectives = OrderedDict(sorted(objectives.items()))
-    for name, value in objectives.items():
-        print("\t{}: {}".format(name, value))
-
-    print("Variables")
-
-    variables = results['solution']['variables']
-    variables = OrderedDict(sorted(variables.items()))
-    for name, value in variables.items():
-        if isinstance(value, list):
-            value = np.array(value)
-
-        print("\n{}: \n{}".format(name, value))
+    print_section('Objective', results['solution']['objective'])
+    print_section('Constraints', results['solution']['constraints'])
+    print_section('Parameters', results['solution']['parameters'])
+    print_section('Variables', results['solution']['variables'])
 
 
 def main():

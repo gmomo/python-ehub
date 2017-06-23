@@ -9,6 +9,7 @@ from typing import List, Optional, Dict, TypeVar, Tuple
 import pandas as pd
 import numpy as np
 
+from energy_hub.capacity import Capacity
 from energy_hub.utils import cached_property
 from energy_hub import Converter, Stream, Storage, TimeSeries
 
@@ -29,6 +30,10 @@ class InputData:
             request: A dictionary in request format
         """
         self._request = request
+
+    @cached_property
+    def capacities(self) -> List[Capacity]:
+        return [Capacity(capacity) for capacity in self._request['capacities']]
 
     def _get_capacity(self, name: str) -> Optional[dict]:
         """Get the capacity in the request format with this name.

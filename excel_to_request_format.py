@@ -140,11 +140,11 @@ class _NewFormatConverter(Converter):
             if lower_bound or upper_bound:
                 capacity['bounds'] = {}
 
-                if lower_bound:
-                    capacity['bounds']['lower'] = lower_bound
+                if lower_bound is not None:
+                    capacity['bounds']['lower'] = int(lower_bound)
 
-                if upper_bound:
-                    capacity['bounds']['upper'] = upper_bound
+                if upper_bound is not None:
+                    capacity['bounds']['upper'] = int(upper_bound)
 
             capacities.append(capacity)
 

@@ -101,7 +101,21 @@ class EHubModel:
 
         self._model.total_cost_objective = Objective(rule=_rule, sense=minimize)
 
+    def _add_capacity_constraints(self):
+        constraints = ConstraintList()
+        for capacity in self._data.capacities:
+            variable = getattr(self._model, capacity.name)
+
+            lower_bound = capacity.lower_bound
+            upper_bound = capacity.upper_bound
+
+            constraints.add(lower_bound <= variable <= upper_bound)
+
+        self._model.capacity_constraints = constraints
+
     def _add_constraints(self):
+        self._add_capacity_constraints()
+
         # Global constraints
         self._add_loads_balance_constraint()
         self._add_capacity_const_constraint()
@@ -437,8 +451,17 @@ class EHubModel:
             self._model.time, self._model.technologies,
             self._model.energy_carrier, rule=_rule)
 
+    def _add_capacity_variables(self):
+        for capacity in self._data.capacities:
+            domain = capacity.domain
+            name = capacity.name
+
+            setattr(self._model, name, Var(domain=domain))
+
     def _add_variables(self):
         model = self._model
+
+        self._add_capacity_variables()
 
         # Global variables
         model.energy_imported = Var(model.time, model.technologies,
