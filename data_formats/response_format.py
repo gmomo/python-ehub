@@ -12,8 +12,8 @@ Examples:
         ...
     data_formats.response_format.ValidationError
 """
-
 from typing import Dict, Any, List, Union
+import io
 
 import jsonschema
 from pyomo.core.base import Param, Var, Model, Constraint
@@ -142,10 +142,17 @@ def _get_parameters(model: Model) -> Dict[str, Any]:
 
 
 def _get_constraints(model: Model) -> Dict[str, str]:
-    return {name: str(constraint.expr)
+    def _to_string(constraint):
+        if hasattr(constraint, 'expr'):
+            return str(constraint.expr)
+
+        expression = io.StringIO()
+        constraint.display(ostream=expression)
+        return expression.getvalue()
+
+    return {name: _to_string(constraint)
             for name, constraint in model.__dict__.items()
-            if isinstance(constraint, Constraint)
-            and hasattr(constraint, 'expr')}
+            if isinstance(constraint, Constraint)}
 
 
 def create_response(results: SolverResults, model: Model) -> Dict[str, Any]:
