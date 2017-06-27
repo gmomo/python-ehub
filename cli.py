@@ -8,16 +8,16 @@ Given the config.yaml file, solving the model is easy:
 
     $ python3.6 cli.py
 
-The program will then print out the solved variables as well as show the
-output of whatever solver is configured in the config.yaml file.
+The program will then print out the output of whatever solver is configured in
+the config.yaml file and then the solved variables, parameters, constraints,
+etc..
 """
-
 from collections import OrderedDict
 from contextlib import redirect_stdout
 
 import numpy as np
 
-from config import settings
+from config import SETTINGS
 from energy_hub import EHubModel
 
 
@@ -66,13 +66,13 @@ def pretty_print(results: dict) -> None:
 
 def main():
     """The main function for the CLI."""
-    model = EHubModel(excel=settings["input_file"])
+    model = EHubModel(excel=SETTINGS["input_file"])
 
     results = model.solve()
 
     pretty_print(results)
 
-    with open(settings["output_file"], 'w') as file:
+    with open(SETTINGS["output_file"], 'w') as file:
         with redirect_stdout(file):
             pretty_print(results)
 

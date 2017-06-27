@@ -1,11 +1,14 @@
-"""Provides functionality for handling the streams in the request format."""
+"""
+Provides functionality for handling the streams in the request format.
+"""
 
 
 class Stream:
     """A wrapper for a request format stream."""
 
     def __init__(self, stream_request: dict, request: dict) -> None:
-        """Create a new wrapper.
+        """
+        Create a new wrapper.
 
         Args:
             stream_request: The request format stream

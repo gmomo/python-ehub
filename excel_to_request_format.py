@@ -1,5 +1,19 @@
-"""Converts Excel files into the request format."""
+"""
+A script that converts an Excel file into the request format.
 
+The Excel file has to be in one of the supported formats, which examples can
+be found in the excel_formats directory.
+
+To run the script on a supported Excel file, do:
+
+    $ python3.6 excel_to_request_format.py <Excel file path> <output file path>
+
+This prints out the request format of the excel file into `<output file path>`.
+
+To see all the possible arguments, run:
+
+    $ python3.6 excel_to_request_format.py --help
+"""
 import argparse
 import json
 from contextlib import suppress
@@ -15,7 +29,8 @@ class FormatUnsupportedError(Exception):
 
 
 def convert(excel_file):
-    """Convert the excel file into the request format.
+    """
+    Convert the excel file into the request format.
 
     Args:
         excel_file: The path to the excel file
@@ -35,14 +50,16 @@ def convert(excel_file):
 
 
 class Converter:
-    """The SuperClass for all Excel-to-request-format converters.
-    
-    All a subclass needs to do is implement all the abstract methods and the 
+    """
+    The SuperClass for all Excel-to-request-format converters.
+
+    All a subclass needs to do is implement all the abstract methods and the
     superclass does the rest of the work.
     """
 
     def __init__(self, excel_file):
-        """Create a new converter for the Excel file.
+        """
+        Create a new converter for the Excel file.
 
         Args:
             excel_file: The path to the excel file
@@ -84,7 +101,8 @@ class Converter:
         raise NotImplementedError
 
     def convert(self):
-        """Convert the file into the request format.
+        """
+        Convert the file into the request format.
 
         Returns:
             The request format
@@ -365,19 +383,19 @@ class _NewFormatConverter(Converter):
 
 def parse_args():
     """Parses the command-line arguments."""
-
     parser = argparse.ArgumentParser(
         description='Converts an excel file into a EHub Request format.')
-    parser.add_argument('excel_file',
-                        help='The excel file to convert',
-                        )
-    parser.add_argument('output_file',
-                        help='The file to output the results to',
-                        )
+    parser.add_argument(
+        'excel_file', help='The excel file to convert',
+    )
+    parser.add_argument(
+        'output_file', help='The file to output the results to',
+    )
     return parser.parse_args()
 
 
 def main():
+    """The function that runs the script."""
     args = parse_args()
 
     content = convert(args.excel_file)
