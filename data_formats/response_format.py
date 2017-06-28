@@ -103,14 +103,16 @@ def _to_matrix(var: Any) -> Union[List[Any], List[List[Any]]]:
     elif dim == 2:
         keys = var.keys()
 
-        num_rows = max(keys, key=lambda t: t[0])[0]
-        num_columns = max(keys, key=lambda t: t[1])[1]
+        num_rows = max(keys, key=lambda t: t[0])[0] + 1
+        num_columns = max(keys, key=lambda t: t[1])[1] + 1
 
         matrix = [[0] * num_columns for _ in range(num_rows)]
 
         for index, value in var.items():
-            row = index[0] - 1
-            col = index[1] - 1
+            row, col = index
+
+            if col < 0 or row < 0:
+                import pdb; pdb.set_trace()
 
             matrix[row][col] = value
 
