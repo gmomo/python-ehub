@@ -60,6 +60,7 @@ def pretty_print(results: dict) -> None:
     print("Solution")
     print_section('Objective', results['solution']['objective'])
     print_section('Constraints', results['solution']['constraints'])
+    print_section('Sets', results['solution']['sets'])
     print_section('Parameters', results['solution']['parameters'])
     print_section('Variables', results['solution']['variables'])
 
