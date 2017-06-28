@@ -92,6 +92,9 @@ def validate(instance: dict) -> None:
 
 
 def _to_matrix(var: Any) -> Union[List[Any], List[List[Any]]]:
+    if not var:
+        return []
+
     # Determine the dimension of the matrix
     try:
         dim = len(list(var.keys())[0])
