@@ -19,7 +19,6 @@ from data_formats import response_format
 from energy_hub.input_data import InputData
 from config import settings
 
-GAS_TECH = [3, 4, 7, 8]
 BIG_M = 5000
 TIME_HORIZON = 20
 MAX_CARBON = 650000
@@ -98,9 +97,8 @@ class EHubModel:
 
         model.technologies = RangeSet(1, len(data.converters))
 
-        techs_without_grid = range(1 + 1, len(data.converters) + 1)
-        model.techs_without_grid = Set(initialize=techs_without_grid,
-                                       within=model.technologies)
+        model.techs_without_grid = RangeSet(2, len(data.converters),
+                                            within=model.technologies)
 
         model.energy_carrier = RangeSet(1, num_demands)
 
@@ -112,13 +110,9 @@ class EHubModel:
                                within=model.technologies)
         model.roof_tech = Set(initialize=data.roof_tech,
                               within=model.technologies)
-        #model.gas_tech = Set(initialize=GAS_TECH, within=model.technologies)
 
         model.part_load = Set(initialize=data.part_load_techs,
                               within=model.technologies)
-
-        # set dispatch tech set
-        model.CHP = Set(initialize=data.chp_list, within=model.technologies)
 
     def _add_objective(self):
         def _rule(model):
@@ -201,12 +195,12 @@ class EHubModel:
 
     @constraint('time', 'energy_carrier')
     def storage_capacity(self, model, t, out):
-        return model.E[t, out] <= model.storage_capacity[out]
+        return model.storage_level[t, out] <= model.storage_capacity[out]
 
     @constraint('time', 'energy_carrier')
     def storage_min_state(self, model, t, out):
         rhs = model.storage_capacity[out] * model.MIN_STATE_OF_CHARGE[out]
-        return model.E[t, out] >= rhs
+        return model.storage_level[t, out] >= rhs
 
     @constraint('time', 'energy_carrier')
     def storage_discharge_rate(self, model, t, out):
@@ -220,7 +214,7 @@ class EHubModel:
 
     @constraint('sub_time', 'energy_carrier')
     def storage_balance(self, model, t, out):
-        lhs = model.E[t, out]
+        lhs = model.storage_level[t, out]
 
         storage_standing_loss = model.STORAGE_STANDING_LOSSES[out]
         discharge_rate = model.DISCHARGING_EFFICIENCY[out]
@@ -228,7 +222,7 @@ class EHubModel:
         q_in = model.energy_to_storage[t, out]
         q_out = model.energy_from_storage[t, out]
 
-        rhs = ((storage_standing_loss * model.E[(t - 1), out])
+        rhs = ((storage_standing_loss * model.storage_level[(t - 1), out])
                + (charge_rate * q_in)
                - ((1 / discharge_rate) * q_out))
         return lhs == rhs
@@ -378,7 +372,8 @@ class EHubModel:
         for i in range(1, data.demand_data.shape[1] + 1):
             # 8760 I believe is the last entry in the table - 1
             last_entry = model.time.last()
-            model.StorCon.add(model.E[1, i] == model.E[last_entry, i])
+            model.StorCon.add(model.storage_level[1, i]
+                              == model.storage_level[last_entry, i])
 
     def _add_various_constraints(self):
         data = self._data
@@ -445,13 +440,11 @@ class EHubModel:
         model.energy_from_storage = Var(model.time, model.energy_carrier,
                                         domain=NonNegativeReals)
 
-        model.E = Var(model.time, model.energy_carrier,
-                      domain=NonNegativeReals)
+        model.storage_level = Var(model.time, model.energy_carrier,
+                                  domain=NonNegativeReals)
 
         model.storage_capacity = Var(model.energy_carrier,
                                      domain=NonNegativeReals)
-
-        model.Ystorage = Var(model.energy_carrier, domain=Binary)
 
     def _add_parameters(self):
         data = self._data
@@ -464,8 +457,6 @@ class EHubModel:
                                             initialize=data.c_matrix)
         model.MAX_CAP_TECHS = Param(model.disp_techs,
                                     initialize=data.max_capacity)
-        model.MAX_CAP_TECHS_ALL = Param(model.techs,
-                                        initialize=data.max_capacity)
 
         model.MAX_CHARGE_RATE = Param(model.energy_carrier,
                                       initialize=data.storage_charge)
@@ -503,11 +494,6 @@ class EHubModel:
         # Maintenance costs
         model.OMV_COSTS = Param(model.technologies,
                                 initialize=data.var_maintenance_cost)
-
-        model.TECH_LIFETIMES = Param(model.technologies,
-                                     initialize=data.life_time)
-        model.STORAGE_LIFETIMES = Param(model.energy_carrier,
-                                        initialize=data.storage_life)
 
         # Declaring Global Parameters
         model.TIME_HORIZON = Param(within=NonNegativeReals,
