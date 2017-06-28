@@ -10,7 +10,7 @@ Examples:
     >>> response_format.validate(example)
     Traceback (most recent call last):
         ...
-    data_formats.response_format.ValidationError
+    data_formats.response_format.ResponseValidationError
 """
 from typing import Dict, Any, List, Union
 import io
@@ -76,7 +76,8 @@ class ResponseValidationError(Exception):
 
 
 def validate(instance: dict) -> None:
-    """Validate the instance against the schema.
+    """
+    Validate the instance against the schema.
 
     Args:
         instance: The potential instance of the schema
@@ -156,7 +157,8 @@ def _get_constraints(model: Model) -> Dict[str, str]:
 
 
 def create_response(results: SolverResults, model: Model) -> Dict[str, Any]:
-    """Create a new response format dictionary.
+    """
+    Create a new response format dictionary.
 
     Args:
         results: The results outputed by Pyomo

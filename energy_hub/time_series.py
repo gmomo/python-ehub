@@ -1,7 +1,6 @@
 """
 Provides functionality for handling a request format's time series.
 """
-
 from typing import Dict, List
 
 
@@ -9,7 +8,8 @@ class TimeSeries:
     """A wrapper for a request format time series."""
 
     def __init__(self, time_series_request: dict) -> None:
-        """Create a new wrapper.
+        """
+        Create a new wrapper.
 
         Args:
             time_series_request: The request format time series

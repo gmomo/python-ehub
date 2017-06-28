@@ -5,7 +5,7 @@ other variables are checked.
 
 import numpy as np
 
-from config import settings
+from config import SETTINGS
 from energy_hub.ehub_model import EHubModel
 
 TEST_INPUT_FILE = "excel_files/General_input_new_simple.xlsx"
@@ -25,8 +25,8 @@ def main():
     """Run the test."""
     model = EHubModel(excel=TEST_INPUT_FILE)
 
-    settings['solver']['name'] = SOLVER
-    settings['solver']['options'] = SOLVER_OPTIONS
+    SETTINGS['solver']['name'] = SOLVER
+    SETTINGS['solver']['options'] = SOLVER_OPTIONS
 
     results = model.solve()
 

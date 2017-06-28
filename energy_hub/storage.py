@@ -7,7 +7,8 @@ class Storage:
     """A wrapper for a request format storage."""
 
     def __init__(self, storage_request: dict, capacity_request: dict) -> None:
-        """Create a new instance.
+        """
+        Create a new wrapper.
 
         Args:
             storage_request: The request format storage

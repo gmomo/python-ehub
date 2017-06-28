@@ -13,7 +13,7 @@ class Capacity:
 
     def __init__(self, capacity_request: dict) -> None:
         """
-        Create a new Capacity object given the capacity in the request format.
+        Create a new wrapper.
 
         Args:
             capacity_request: The capacity in the capacities section of the

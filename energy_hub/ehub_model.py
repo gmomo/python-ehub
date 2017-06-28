@@ -5,7 +5,7 @@ import functools
 
 from pyomo.core.base import (
     ConcreteModel, RangeSet, Set, Param, NonNegativeReals, Binary, Var, Reals,
-    Constraint, ConstraintList, Objective, minimize
+    Constraint, ConstraintList, Objective, minimize,
 )
 from pyomo.opt import SolverFactory, SolverManagerFactory
 
@@ -17,7 +17,7 @@ import pyomo.environ
 import excel_to_request_format
 from data_formats import response_format
 from energy_hub.input_data import InputData
-from config import settings
+from config import SETTINGS
 
 BIG_M = 5000
 TIME_HORIZON = 20
@@ -120,8 +120,15 @@ class EHubModel:
 
         self._model.total_cost_objective = Objective(rule=_rule, sense=minimize)
 
+    @staticmethod
     @constraint()
-    def calculate_total_cost(self, model):
+    def calculate_total_cost(model: ConcreteModel) -> bool:
+        """
+        A constraint for calculating the total cost.
+
+        Args:
+            model: The Pyomo model
+        """
         cost = (model.investment_cost
                 + model.operating_cost
                 + model.maintenance_cost)
@@ -129,20 +136,34 @@ class EHubModel:
 
         return model.total_cost == cost - income
 
+    @staticmethod
     @constraint()
-    def calculate_total_carbon(self, model):
+    def calculate_total_carbon(model):
+        """
+        A constraint for calculating the total carbon produced.
+
+        Args:
+            model: The Pyomo model
+        """
         total_carbon = 0
         for tech in model.technologies:
             total_energy_imported = sum(model.energy_imported[t, tech]
                                         for t in model.time)
+            carbon_factor = model.CARBON_FACTORS[tech]
 
-            total_carbon += (model.CARBON_FACTORS[tech]
-                             * total_energy_imported)
+            total_carbon += carbon_factor * total_energy_imported
 
         return model.total_carbon == total_carbon
 
+    @staticmethod
     @constraint()
-    def calculate_investment_cost(self, model):
+    def calculate_investment_cost(model):
+        """
+        A constraint for calculating the investment cost.
+
+        Args:
+            model: The Pyomo model
+        """
         storage_cost = sum(model.NET_PRESENT_VALUE_STORAGE[out]
                            * model.LINEAR_STORAGE_COSTS[out]
                            * model.storage_capacity[out]
@@ -159,8 +180,15 @@ class EHubModel:
         cost = tech_cost + storage_cost
         return model.investment_cost == cost
 
+    @staticmethod
     @constraint()
-    def calculate_income_from_exports(self, model):
+    def calculate_income_from_exports(model):
+        """
+        A constraint for calculating the income from exported streams.
+
+        Args:
+            model: The Pyomo model
+        """
         income = 0
         for energy in model.energy_carrier:
             total_energy_exported = sum(model.energy_exported[t, energy]
@@ -170,8 +198,15 @@ class EHubModel:
 
         return model.income_from_exports == income
 
+    @staticmethod
     @constraint()
-    def calculate_maintenance_cost(self, model):
+    def calculate_maintenance_cost(model):
+        """
+        A constraint for calculating the maintenance cost.
+
+        Args:
+            model: The Pyomo model
+        """
         cost = 0
         for t in model.time:
             for tech in model.technologies:
@@ -182,8 +217,15 @@ class EHubModel:
 
         return model.maintenance_cost == cost
 
+    @staticmethod
     @constraint()
-    def calculate_operating_cost(self, model):
+    def calculate_operating_cost(model):
+        """
+        A constraint for calculating the operating cost.
+
+        Args:
+            model: The Pyomo model
+        """
         cost = 0
         for tech in model.technologies:
             total_energy_imported = sum(model.energy_imported[t, tech]
@@ -193,57 +235,143 @@ class EHubModel:
 
         return model.operating_cost == cost
 
+    @staticmethod
     @constraint('time', 'energy_carrier')
-    def storage_capacity(self, model, t, out):
+    def storage_capacity(model, t, out):
+        """
+        Ensure the storage level is below the storage's capacity.
+
+        Args:
+            model: The Pyomo model
+            t: The time step
+            out: The output energy stream
+        """
         return model.storage_level[t, out] <= model.storage_capacity[out]
 
+    @staticmethod
     @constraint('time', 'energy_carrier')
-    def storage_min_state(self, model, t, out):
-        rhs = model.storage_capacity[out] * model.MIN_STATE_OF_CHARGE[out]
-        return model.storage_level[t, out] >= rhs
+    def storage_min_state(model, t, out):
+        """
+        Ensure the storage level is above it's minimum level.\
 
+        Args:
+            model: The Pyomo model
+            t: The time step
+            out: The output energy stream
+        """
+        storage_capacity = model.storage_capacity[out]
+        min_soc = model.MIN_STATE_OF_CHARGE[out]
+        storage_level = model.storage_level[t, out]
+
+        min_storage_level = storage_capacity * min_soc
+
+        return min_storage_level <= storage_level
+
+    @staticmethod
     @constraint('time', 'energy_carrier')
-    def storage_discharge_rate(self, model, t, out):
-        rhs = model.MAX_DISCHARGE_RATE[out] * model.storage_capacity[out]
-        return model.energy_from_storage[t, out] <= rhs
+    def storage_discharge_rate(model, t, out):
+        """
+        Ensure the discharge rate of a storage is below it's maximum rate.
 
+        Args:
+            model: The Pyomo model
+            t: The time instance
+            out: The output energy stream
+        """
+        max_discharge_rate = model.MAX_DISCHARGE_RATE[out]
+        storage_capacity = model.storage_capacity[out]
+        discharge_rate = model.energy_from_storage[t, out]
+
+        max_rate = max_discharge_rate * storage_capacity
+
+        return discharge_rate <= max_rate
+
+    @staticmethod
     @constraint('time', 'energy_carrier')
-    def storage_charge_rate(self, model, t, out):
-        rhs = model.MAX_CHARGE_RATE[out] * model.storage_capacity[out]
-        return model.energy_to_storage[t, out] <= rhs
+    def storage_charge_rate(model, t, out):
+        """
+        Ensure the charge rate of a storage is below it's maximum rate.
 
+        Args:
+            model: The Pyomo model
+            t: The time step
+            out: The output energy stream
+        """
+        max_charge_rate = model.MAX_CHARGE_RATE[out]
+        storage_capacity = model.storage_capacity[out]
+        charge_rate = model.energy_to_storage[t, out]
+
+        max_rate = max_charge_rate * storage_capacity
+
+        return charge_rate <= max_rate
+
+    @staticmethod
     @constraint('sub_time', 'energy_carrier')
-    def storage_balance(self, model, t, out):
-        lhs = model.storage_level[t, out]
+    def storage_balance(model, t, out):
+        """
+        Calculate the current storage level from the previous level.
 
+        Args:
+            model: The Pyomo model
+            t: The time step
+            out: The storage
+        """
+        current_storage_level = model.storage_level[t, out]
         storage_standing_loss = model.STORAGE_STANDING_LOSSES[out]
         discharge_rate = model.DISCHARGING_EFFICIENCY[out]
         charge_rate = model.CHARGING_EFFICIENCY[out]
         q_in = model.energy_to_storage[t, out]
         q_out = model.energy_from_storage[t, out]
+        previous_storage_level = model.storage_level[t - 1, out]
 
-        rhs = ((storage_standing_loss * model.storage_level[(t - 1), out])
-               + (charge_rate * q_in)
-               - ((1 / discharge_rate) * q_out))
-        return lhs == rhs
+        calculated_level = (
+            (storage_standing_loss * previous_storage_level)
+            + (charge_rate * q_in)
+            - ((1 / discharge_rate) * q_out)
+        )
+        return current_storage_level == calculated_level
 
+    @staticmethod
     @constraint('technologies', 'energy_carrier')
-    def fix_cost_constant(self, model, tech, out):
+    def fix_cost_constant(model, tech, out):
+        """
+        Args:
+            model: The Pyomo model
+            tech: A converter
+            out: A storage
+        """
         capacity = model.capacities[tech, out]
         rhs = model.BIG_M * model.Ytechnologies[tech, out]
         return capacity <= rhs
 
+    @staticmethod
     @constraint('roof_tech')
-    def roof_area(self, model, roof):
-        demands = range(1, self._data.demand_data.shape[1] + 1)
+    def roof_area(model, roof):
+        """
+        Ensure the roof techs are taking up less area than there is roof.
 
-        # DemandData.shape[1]
-        lhs = sum(model.capacities[roof, d] for d in demands)
-        rhs = model.MAX_SOLAR_AREA
-        return lhs <= rhs
+        Args:
+            model: The Pyomo model
+            roof: A roof converter
+        """
+        roof_area = sum(model.capacities[roof, d]
+                        for d in model.energy_carrier)
+        max_roof_area = model.MAX_SOLAR_AREA
 
+        return roof_area <= max_roof_area
+
+    @staticmethod
     @constraint('time', 'solar_techs', 'energy_carrier')
-    def solar_input(self, model, t, solar_tech, out):
+    def solar_input(model, t, solar_tech, out):
+        """
+        Calculate the energy from the roof techs per time step.
+
+        Args:
+            model: The Pyomo model
+            t: A time step
+            solar_tech: A solar converter
+            out:
+        """
         conversion_rate = model.CONVERSION_EFFICIENCY[solar_tech, out]
 
         if conversion_rate <= 0:
@@ -256,8 +384,16 @@ class EHubModel:
 
         return energy_imported == rhs
 
+    @staticmethod
     @constraint('time', 'part_load', 'energy_carrier')
-    def part_load_u(self, model, t, disp, out):
+    def part_load_u(model, t, disp, out):
+        """
+        Args:
+            model: The Pyomo model
+            t: A time step
+            disp: A dispatch tech
+            out:
+        """
         conversion_rate = model.CONVERSION_EFFICIENCY[disp, out]
 
         if conversion_rate <= 0:
@@ -270,8 +406,16 @@ class EHubModel:
 
         return lhs <= rhs
 
+    @staticmethod
     @constraint('time', 'part_load', 'energy_carrier')
-    def part_load_l(self, model, t, disp, out):
+    def part_load_l(model, t, disp, out):
+        """
+        Args:
+            model: The Pyomo model
+            t: A time step
+            disp: A dispatch tech
+            out:
+        """
         conversion_rate = model.CONVERSION_EFFICIENCY[disp, out]
 
         if conversion_rate <= 0:
@@ -287,19 +431,40 @@ class EHubModel:
                + model.BIG_M * (1 - model.Yon[t, disp]))
         return lhs <= rhs
 
+    @staticmethod
     @constraint('technologies', 'energy_carrier')
-    def capacity(self, model, tech, out):
+    def capacity(model, tech, out):
+        """
+        Args:
+            model: The Pyomo model
+            tech: A converter
+            out:
+        """
         if model.CONVERSION_EFFICIENCY[tech, out] <= 0:
             return model.capacities[tech, out] == 0
 
         return Constraint.Skip
 
+    @staticmethod
     @constraint('disp_techs', 'energy_carrier')
-    def max_capacity(self, model, tech, out):
+    def max_capacity(model, tech, out):
+        """
+        Args:
+            model: The Pyomo model
+            tech: A converter
+            out:
+        """
         return model.capacities[tech, out] <= model.MAX_CAP_TECHS[tech]
 
+    @staticmethod
     @constraint('time', 'energy_carrier')
-    def loads_balance(self, model, t, out):
+    def loads_balance(model, t, out):
+        """
+        Args:
+            model: The Pyomo model
+            t: A time step
+            out:
+        """
         q_out = model.energy_from_storage[t, out]
         q_in = model.energy_to_storage[t, out]
         load = model.LOADS[t, out]
@@ -318,8 +483,16 @@ class EHubModel:
 
         return lhs <= rhs
 
+    @staticmethod
     @constraint('time', 'technologies', 'energy_carrier')
-    def capacity_const(self, model, t, tech, output_type):
+    def capacity_const(model, t, tech, output_type):
+        """
+        Args:
+            model: The Pyomo model
+            t: A time step
+            tech: A converter
+            output_type: An output stream
+        """
         conversion_rate = model.CONVERSION_EFFICIENCY[tech, output_type]
 
         if conversion_rate <= 0:
@@ -333,6 +506,7 @@ class EHubModel:
         return energy_in <= capacity
 
     def _add_constraints_new(self):
+        """Add all the constraint decorated functions to the model."""
         methods = [getattr(self, method)
                    for method in dir(self)
                    if callable(getattr(self, method))]
@@ -345,6 +519,7 @@ class EHubModel:
             setattr(self._model, name, Constraint(*args, rule=rule))
 
     def _add_capacity_constraints(self):
+        """Add the constraints on the capacities to the model."""
         constraints = ConstraintList()
         for capacity in self._data.capacities:
             variable = getattr(self._model, capacity.name)
@@ -365,6 +540,8 @@ class EHubModel:
         self._add_unknown_storage_constraint()
 
     def _add_unknown_storage_constraint(self):
+        """Ensure that the storage level at the beginning is equal to it's end
+        level."""
         data = self._data
         model = self._model
 
@@ -388,17 +565,17 @@ class EHubModel:
             rhs = (model.CONVERSION_EFFICIENCY[chp, dd_1]
                    / model.CONVERSION_EFFICIENCY[chp, dd_0]
                    * model.capacities[chp, dd_0])
-            constraint = model.capacities[chp, dd_1] == rhs
-            model.con.add(constraint)
+            constraint_ = model.capacities[chp, dd_1] == rhs
+            model.con.add(constraint_)
 
-            constraint = (model.Ytechnologies[chp, dd_0]
-                          == model.Ytechnologies[chp, dd_1])
-            model.con.add(constraint)
+            constraint_ = (model.Ytechnologies[chp, dd_0]
+                           == model.Ytechnologies[chp, dd_1])
+            model.con.add(constraint_)
 
-            constraint = (model.capacities[chp, dd_0]
-                          <= model.MAX_CAP_TECHS[chp]
-                          * model.Ytechnologies[chp, dd_0])
-            model.con.add(constraint)
+            constraint_ = (model.capacities[chp, dd_0]
+                           <= model.MAX_CAP_TECHS[chp]
+                           * model.Ytechnologies[chp, dd_0])
+            model.con.add(constraint_)
 
     def _add_capacity_variables(self):
         for capacity in self._data.capacities:
@@ -527,8 +704,8 @@ class EHubModel:
         if not self._model:
             raise RuntimeError("Can't solve a model with no data.")
 
-        solver = settings["solver"]["name"]
-        options = settings["solver"]["options"]
+        solver = SETTINGS["solver"]["name"]
+        options = SETTINGS["solver"]["options"]
         if options is None:
             options = {}
 

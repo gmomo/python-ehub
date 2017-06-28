@@ -10,7 +10,7 @@ Examples:
     >>> request_format.validate(example)
     Traceback (most recent call last):
         ...
-    data_formats.request_format.ValidationError
+    data_formats.request_format.RequestValidationError
 """
 
 import jsonschema

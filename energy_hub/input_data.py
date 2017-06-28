@@ -33,6 +33,7 @@ class InputData:
 
     @cached_property
     def capacities(self) -> List[Capacity]:
+        """The list of capacities."""
         return [Capacity(capacity) for capacity in self._request['capacities']]
 
     def _get_capacity(self, name: str) -> Optional[dict]:
