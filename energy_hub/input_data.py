@@ -116,7 +116,7 @@ class InputData:
                    if time_series.is_demand]
 
         return {(row, column): value
-                for column, demand in enumerate(demands, start=1)
+                for column, demand in enumerate(demands)
                 for row, value in demand.pyomo_data.items()}
 
     @cached_property
@@ -131,13 +131,13 @@ class InputData:
     @cached_property
     def chp_list(self) -> List[int]:
         """The IDs of Combined Heat and Power converters."""
-        return [i for i, tech in enumerate(self.converters, start=1)
+        return [i for i, tech in enumerate(self.converters)
                 if tech.is_chp]
 
     @cached_property
     def roof_tech(self) -> List[int]:
         """The IDs of the converters that can be put on a roof."""
-        return [i for i, tech in enumerate(self.converters, start=1)
+        return [i for i, tech in enumerate(self.converters)
                 if tech.is_roof_tech]
 
     @property
@@ -148,9 +148,9 @@ class InputData:
         """
         tech_outputs = self.output_stream_names
 
-        c_matrix = pd.DataFrame(0, index=range(1, len(self.converters) + 1),
+        c_matrix = pd.DataFrame(0, index=range(len(self.converters)),
                                 columns=tech_outputs, dtype=float)
-        for i, tech in enumerate(self.converters, start=1):
+        for i, tech in enumerate(self.converters):
             efficiency = tech.efficiency
             output_ratio = tech.output_ratio
 
@@ -165,7 +165,7 @@ class InputData:
                     value = efficiency * output_ratio
                 c_matrix[output][i] = value
 
-        c_matrix.columns = range(1, len(c_matrix.columns) + 1)
+        c_matrix.columns = range(len(c_matrix.columns))
 
         return {(row, col): value
                 for col, column in c_matrix.to_dict().items()
@@ -174,20 +174,20 @@ class InputData:
     @cached_property
     def solar_techs(self) -> List[int]:
         """The IDs of the solar converters."""
-        return [i for i, tech in enumerate(self.converters, start=1)
+        return [i for i, tech in enumerate(self.converters)
                 if tech.is_solar]
 
     @cached_property
     def part_load(self) -> Dict[Tuple[int, int], float]:
         """Return the part load for each tech and each of its outputs."""
         part_load_techs = [(i, tech)
-                           for i, tech in enumerate(self.converters, start=1)
+                           for i, tech in enumerate(self.converters)
                            if not (tech.is_grid or tech.is_solar)]
         output_streams = self.output_stream_names
 
         part_load = defaultdict(float)  # type: Dict[Tuple[int, int], float]
         for tech_index, tech in part_load_techs:
-            for output_index, output_stream in enumerate(output_streams, start=1):
+            for output_index, output_stream in enumerate(output_streams):
                 if output_stream in tech.outputs:
                     min_load = tech.min_load
                     if min_load is not None:
@@ -199,19 +199,19 @@ class InputData:
     def max_capacity(self) -> Dict[int, float]:
         """The max capacity of non-solar converter."""
         return {i: tech.max_capacity
-                for i, tech in enumerate(self.converters, start=1)
+                for i, tech in enumerate(self.converters)
                 if not (tech.is_grid or tech.is_solar)}
 
     @property
     def disp_techs(self) -> List[int]:
         """The IDs of the dispatch converters."""
-        return [i for i, tech in enumerate(self.converters, start=1)
+        return [i for i, tech in enumerate(self.converters)
                 if tech.is_dispatch]
 
     @property
     def part_load_techs(self) -> List[int]:
         """The IDs of the converters that have a part load."""
-        return [i for i, tech in enumerate(self.converters, start=1)
+        return [i for i, tech in enumerate(self.converters)
                 if tech.has_part_load]
 
     @cached_property
@@ -220,8 +220,8 @@ class InputData:
         output_streams = self.output_stream_names
 
         linear_cost = {}
-        for row, tech in enumerate(self.converters, start=1):
-            for column, output_stream in enumerate(output_streams, start=1):
+        for row, tech in enumerate(self.converters):
+            for column, output_stream in enumerate(output_streams):
                 linear_cost[row, column] = 0.0
 
                 # If the tech outputs electricity, remove the other costs.  No
@@ -249,7 +249,7 @@ class InputData:
         dispatch_demands = np.zeros((num_rows, num_columns), dtype=int)
 
         for row, chp_tech in enumerate(chp_techs):
-            for index, output in enumerate(self.output_stream_names, start=1):
+            for index, output in enumerate(self.output_stream_names):
                 if output in chp_tech.outputs:
                     for col in range(index - 1, num_columns):
                         dispatch_demands[row, col - 1] = index
@@ -265,7 +265,7 @@ class InputData:
     def life_time(self) -> Dict[int, float]:
         """The life time of each converter."""
         return {i: tech.lifetime
-                for i, tech in enumerate(self.converters, start=1)
+                for i, tech in enumerate(self.converters)
                 if not tech.is_grid}
 
     def _calculate_npv(self, lifetime: float) -> float:
@@ -287,20 +287,20 @@ class InputData:
     def tech_npv(self) -> Dict[int, float]:
         """The net present value of each converter."""
         return {i: round(self._calculate_npv(tech.lifetime), 4)
-                for i, tech in enumerate(self.converters, start=1)
+                for i, tech in enumerate(self.converters)
                 if not tech.is_grid}
 
     @cached_property
     def var_maintenance_cost(self) -> Dict[int, float]:
         """The variable maintenance cost of each converter."""
         return {i: tech.usage_maintenance_cost
-                for i, tech in enumerate(self.converters, start=1)}
+                for i, tech in enumerate(self.converters)}
 
     @cached_property
     def carb_factors(self) -> Dict[int, float]:
         """The carbon factor of each converter."""
         carbon_factors = {}
-        for i, tech in enumerate(self.converters, start=1):
+        for i, tech in enumerate(self.converters):
             input_ = tech.inputs[0]  # Assume only one input per tech
 
             for stream in self.streams:
@@ -313,7 +313,7 @@ class InputData:
     def fuel_price(self) -> Dict[int, float]:
         """ Returns the carbon price of each fuel. """
         fuel_prices = {}
-        for i, tech in enumerate(self.converters, start=1):
+        for i, tech in enumerate(self.converters):
             input_ = tech.inputs[0]  # Assume only one input per tech
 
             for stream in self.streams:
@@ -326,7 +326,7 @@ class InputData:
     def feed_in(self) -> Dict[int, float]:
         """The export price of each output stream."""
         return {i: stream.export_price
-                for i, stream in enumerate(self.streams, start=1)
+                for i, stream in enumerate(self.streams)
                 if stream.is_output}
 
     @cached_property
@@ -372,10 +372,10 @@ class InputData:
     def _get_from_storages(self, attribute: str) -> Dict[int, T]:
         """Return the attribute of each storage as a dictionary."""
         return {i: getattr(storage, attribute)
-                for i, storage in enumerate(self.storages, start=1)}
+                for i, storage in enumerate(self.storages)}
 
     @cached_property
     def storage_npv(self) -> Dict[int, float]:
         """The net present value of each storage."""
         return {i: self._calculate_npv(storage.lifetime)
-                for i, storage in enumerate(self.storages, start=1)}
+                for i, storage in enumerate(self.storages)}
