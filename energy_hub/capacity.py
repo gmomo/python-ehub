@@ -40,8 +40,8 @@ class Capacity:
     @property
     def lower_bound(self) -> Optional[float]:
         """The lower bound of the capacity as a float."""
-        if 'bounds' in self._capacity and 'upper' in self._capacity['bounds']:
-            return self._capacity['bounds']['upper']
+        if 'bounds' in self._capacity and 'lower' in self._capacity['bounds']:
+            return self._capacity['bounds']['lower']
 
         return None  # Unbounded
 
