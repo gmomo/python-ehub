@@ -28,7 +28,7 @@ MAX_CARBON = 650000
 MAX_SOLAR_AREA = 500
 
 
-def constraint(*args):
+def constraint(*args, enabled=True):
     """
     Mark a function as a constraint of the model.
 
@@ -37,6 +37,7 @@ def constraint(*args):
 
     Args:
         *args: The arguments that are passed to Pyomo's Constraint constructor
+        enabled: Is the constraint enabled? Defaults to True.
 
     Returns:
         The decorated function
@@ -46,13 +47,14 @@ def constraint(*args):
 
         func.is_constraint = True
         func.args = args
+        func.enabled = enabled
 
         return func
 
     return _wrapper
 
 
-def constraint_list(func):
+def constraint_list(*, enabled=True):
     """
     Mark a function as a ConstraintList of the model.
 
@@ -60,14 +62,20 @@ def constraint_list(func):
     body.
 
     Args:
-        func: The function to be marked
+        enabled: Is the constraint enabled? Defaults to True.
 
     Returns:
         The decorated function
     """
-    func.is_constraint_list = True
+    def _wrapper(func):
+        functools.wraps(func)
 
-    return func
+        func.is_constraint_list = True
+        func.enabled = enabled
+
+        return func
+
+    return _wrapper
 
 
 class EHubModel:
@@ -577,6 +585,9 @@ class EHubModel:
         rules = (rule for rule in methods if hasattr(rule, 'is_constraint'))
 
         for rule in rules:
+            if not rule.enabled:
+                continue
+
             name = rule.__name__ + '_constraint'
             args = [getattr(self._model, arg) for arg in rule.args]
 
@@ -590,6 +601,9 @@ class EHubModel:
                  if hasattr(rule, 'is_constraint_list'))
 
         for rule in rules:
+            if not rule.enabled:
+                continue
+
             name = rule.__name__ + '_constraint_list'
 
             constraints = ConstraintList()
@@ -598,7 +612,7 @@ class EHubModel:
 
             setattr(self._model, name, constraints)
 
-    @constraint_list
+    @constraint_list()
     def capacity_constraints(self):
         for capacity in self._data.capacities:
             variable = getattr(self._model, capacity.name)
@@ -608,24 +622,11 @@ class EHubModel:
 
             yield lower_bound <= variable <= upper_bound
 
-    def _add_capacity_constraints(self):
-        """Add the constraints on the capacities to the model."""
-        constraints = ConstraintList()
-        for capacity in self._data.capacities:
-            variable = getattr(self._model, capacity.name)
-
-            lower_bound = capacity.lower_bound
-            upper_bound = capacity.upper_bound
-
-            constraints.add(lower_bound <= variable <= upper_bound)
-
-        self._model.capacity_constraints = constraints
-
     def _add_constraints(self):
         self._add_constraints_new()
         self._add_constraint_lists()
 
-    @constraint_list
+    @constraint_list()
     def _add_unknown_storage_constraint(self):
         """Ensure that the storage level at the beginning is equal to it's end
         level."""
@@ -640,7 +641,7 @@ class EHubModel:
 
             yield start_level == end_level
 
-    @constraint_list
+    @constraint_list()
     def _add_various_constraints(self):
         data = self._data
         model = self._model
