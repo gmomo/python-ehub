@@ -5,7 +5,7 @@ import functools
 from typing import List, Tuple
 
 from pyomo.core.base import (
-    ConcreteModel, RangeSet, Set, Param, NonNegativeReals, Binary, Var, Reals,
+    ConcreteModel, Set, Param, NonNegativeReals, Binary, Var, Reals,
     Constraint, ConstraintList, Objective, minimize,
 )
 from pyomo.opt import SolverFactory, SolverManagerFactory
@@ -19,6 +19,7 @@ import excel_to_request_format
 from data_formats import response_format
 from energy_hub import Storage
 from energy_hub.input_data import InputData
+from energy_hub.range_set import RangeSet
 from config import SETTINGS
 
 BIG_M = 5000
@@ -111,18 +112,18 @@ class EHubModel:
         model = self._model
 
         num_time_steps, num_demands = data.demand_data.shape
-        model.time = RangeSet(1, num_time_steps)
-        model.sub_time = RangeSet(2, num_time_steps,
+        model.time = RangeSet(stop=num_time_steps)
+        model.sub_time = RangeSet(start=1, stop=num_time_steps,
                                   within=model.time)
 
-        model.technologies = RangeSet(1, len(data.converters))
+        model.technologies = RangeSet(stop=len(data.converters))
 
-        model.techs_without_grid = RangeSet(2, len(data.converters),
+        model.techs_without_grid = RangeSet(start=1, stop=len(data.converters),
                                             within=model.technologies)
 
-        model.storages = RangeSet(1, len(data.storages))
-        model.energy_carrier = RangeSet(1, num_demands)
-        model.demands = RangeSet(1, num_demands)
+        model.storages = RangeSet(stop=len(data.storages))
+        model.energy_carrier = RangeSet(stop=num_demands)
+        model.demands = RangeSet(stop=num_demands)
 
         model.techs = Set(initialize=data.max_capacity.keys(),
                           within=model.technologies)
@@ -631,7 +632,7 @@ class EHubModel:
         data = self._data
         model = self._model
 
-        for i in range(1, data.demand_data.shape[1] + 1):
+        for i in range(data.demand_data.shape[1]):
             last_entry = model.time.last()
 
             start_level = model.storage_level[1, i]

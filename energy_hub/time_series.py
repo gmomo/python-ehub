@@ -51,5 +51,5 @@ class TimeSeries:
         """A dictionary for use with Pyomo."""
         return {
             column: value
-            for column, value in enumerate(self._series['data'], start=1)
+            for column, value in enumerate(self._series['data'])
         }
