@@ -17,6 +17,10 @@ class TimeSeries:
         self._series = time_series_request
 
     @property
+    def stream(self):
+        return self._series['stream']
+
+    @property
     def is_source(self) -> bool:
         """Is this time series a source?"""
         return self._series['type'] == 'Source'
