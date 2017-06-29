@@ -581,7 +581,6 @@ class EHubModel:
         self._add_capacity_constraints()
 
         self._add_various_constraints()
-
         self._add_unknown_storage_constraint()
 
     def _add_unknown_storage_constraint(self):
