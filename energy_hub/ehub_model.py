@@ -51,6 +51,24 @@ def constraint(*args):
     return _wrapper
 
 
+def constraint_list(func):
+    """
+    Mark a function as a ConstraintList of the model.
+
+    The function has to return a generator. ie: must use a yield in the method
+    body.
+
+    Args:
+        func: The function to be marked
+
+    Returns:
+        The decorated function
+    """
+    func.is_constraint_list = True
+
+    return func
+
+
 class EHubModel:
     """
     Represents a black-box Energy Hub.
@@ -563,6 +581,32 @@ class EHubModel:
 
             setattr(self._model, name, Constraint(*args, rule=rule))
 
+    def _add_constraint_lists(self):
+        methods = [getattr(self, method)
+                   for method in dir(self)
+                   if callable(getattr(self, method))]
+        rules = (rule for rule in methods
+                 if hasattr(rule, 'is_constraint_list'))
+
+        for rule in rules:
+            name = rule.__name__ + '_constraint_list'
+
+            constraints = ConstraintList()
+            for expression in rule():
+                constraints.add(expression)
+
+            setattr(self._model, name, constraints)
+
+    @constraint_list
+    def capacity_constraints(self):
+        for capacity in self._data.capacities:
+            variable = getattr(self._model, capacity.name)
+
+            lower_bound = capacity.lower_bound
+            upper_bound = capacity.upper_bound
+
+            yield lower_bound <= variable <= upper_bound
+
     def _add_capacity_constraints(self):
         """Add the constraints on the capacities to the model."""
         constraints = ConstraintList()
@@ -578,32 +622,29 @@ class EHubModel:
 
     def _add_constraints(self):
         self._add_constraints_new()
-        self._add_capacity_constraints()
+        self._add_constraint_lists()
 
-        self._add_various_constraints()
-        self._add_unknown_storage_constraint()
-
+    @constraint_list
     def _add_unknown_storage_constraint(self):
         """Ensure that the storage level at the beginning is equal to it's end
         level."""
         data = self._data
         model = self._model
 
-        model.StorCon = ConstraintList()
         for i in range(1, data.demand_data.shape[1] + 1):
             last_entry = model.time.last()
 
             start_level = model.storage_level[1, i]
-            end_level = model.storage_level[last_entry, 1]
+            end_level = model.storage_level[last_entry, i]
 
-            model.StorCon.add(start_level == end_level)
+            yield start_level == end_level
 
+    @constraint_list
     def _add_various_constraints(self):
         data = self._data
         model = self._model
 
         dispatch_demands = data.dispatch_demands
-        model.con = ConstraintList()
         for i, chp in enumerate(data.chp_list):
             dd_1 = dispatch_demands[i, 1]
             dd_0 = dispatch_demands[i, 0]
@@ -611,17 +652,14 @@ class EHubModel:
             rhs = (model.CONVERSION_EFFICIENCY[chp, dd_1]
                    / model.CONVERSION_EFFICIENCY[chp, dd_0]
                    * model.capacities[chp, dd_0])
-            constraint_ = model.capacities[chp, dd_1] == rhs
-            model.con.add(constraint_)
+            yield model.capacities[chp, dd_1] == rhs
 
-            constraint_ = (model.Ytechnologies[chp, dd_0]
-                           == model.Ytechnologies[chp, dd_1])
-            model.con.add(constraint_)
+            yield (model.Ytechnologies[chp, dd_0]
+                   == model.Ytechnologies[chp, dd_1])
 
-            constraint_ = (model.capacities[chp, dd_0]
-                           <= model.MAX_CAP_TECHS[chp]
-                           * model.Ytechnologies[chp, dd_0])
-            model.con.add(constraint_)
+            yield (model.capacities[chp, dd_0]
+                   <= model.MAX_CAP_TECHS[chp]
+                   * model.Ytechnologies[chp, dd_0])
 
     def _add_capacity_variables(self):
         for capacity in self._data.capacities:
