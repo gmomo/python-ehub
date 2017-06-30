@@ -19,3 +19,7 @@ class ConstantOrVar:
             return getattr(self._model, value)
 
         return value
+
+    @property
+    def values(self):
+        return self._values
