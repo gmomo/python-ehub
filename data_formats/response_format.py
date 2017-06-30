@@ -19,6 +19,8 @@ import jsonschema
 from pyomo.core.base import Param, Var, Model, Constraint, Set
 from pyomo.opt import SolverResults
 
+from energy_hub.param_var import ConstantOrVar
+
 SCHEMA = {
     'type': 'object',
     'properties': {
@@ -169,6 +171,12 @@ def _get_sets(model: Model) -> Dict[str, str]:
                          or name.endswith('_index_0')))}
 
 
+def _get_variable_parameters(model: Model) -> Dict[str, str]:
+    return {name: _to_matrix(value.values)
+            for name, value in model.__dict__.items()
+            if isinstance(value, ConstantOrVar)}
+
+
 def create_response(results: SolverResults, model: Model) -> Dict[str, Any]:
     """
     Create a new response format dictionary.
@@ -195,6 +203,7 @@ def create_response(results: SolverResults, model: Model) -> Dict[str, Any]:
             },
             'variables': _get_variables(model),
             'parameters': _get_parameters(model),
+            'param_or_var': _get_variable_parameters(model),
             'constraints': _get_constraints(model),
             'sets': _get_sets(model),
         }
