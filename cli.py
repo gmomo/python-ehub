@@ -16,6 +16,7 @@ from collections import OrderedDict
 from contextlib import redirect_stdout
 
 import numpy as np
+import pandas as pd
 
 from config import SETTINGS
 from energy_hub import EHubModel
@@ -34,10 +35,13 @@ def print_section(section_name: str, solution_section: dict) -> None:
 
     attributes = OrderedDict(sorted(solution_section.items()))
     for name, value in attributes.items():
-        if isinstance(value, list):
-            value = np.array(value)
+        if isinstance(value, dict):
+            value = pd.DataFrame.from_dict(value, orient='index')
 
-        print("\n{}: \n{}".format(name, value))
+            if list(value.columns) == [0]:
+                value.columns = [name]
+
+        print(f"\n{name}: \n{value}")
 
 
 def pretty_print(results: dict) -> None:
@@ -59,7 +63,6 @@ def pretty_print(results: dict) -> None:
 
     print("Solution")
     print_section('Objective', results['solution']['objective'])
-    print_section('Constraints', results['solution']['constraints'])
     print_section('Sets', results['solution']['sets'])
     print_section('Parameters', results['solution']['parameters'])
     print_section('Variable Parameters', results['solution']['param_or_var'])
