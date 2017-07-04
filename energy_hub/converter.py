@@ -1,8 +1,7 @@
 """
 Provides functionality for handling a request format's converter.
 """
-
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 
 class Converter:
@@ -66,7 +65,19 @@ class Converter:
         return self._converter['efficiency']
 
     @property
-    def output_ratio(self) -> float:
+    def output_ratios(self) -> Dict[str, float]:
+        """The output ratios for each output stream."""
+        output_ratios = {}
+        for output in self.outputs:
+            if output == 'Elec':
+                output_ratios['Elec'] = 1
+            else:
+                output_ratios[output] = self._output_ratio
+
+        return output_ratios
+
+    @property
+    def _output_ratio(self) -> float:
         """The output efficiency of the converter."""
         if 'output_ratio' in self._converter:
             return self._converter['output_ratio']

@@ -1,9 +1,15 @@
+"""
+Provides a wrapper class for Pyomo's RangeSet.
+"""
 from typing import Optional
 
-from pyomo.core.base import RangeSet, Set
+import pyomo.core.base as pyomo
+from pyomo.core.base import Set
 
 
-class RangeSet(RangeSet):
+# Pyomo does some really wonky OOP
+# pylint: disable=too-many-ancestors
+class RangeSet(pyomo.RangeSet):
     """
     A wrapper for a Pyomo RangeSet that operates more like Python's `range`.
     """
@@ -19,7 +25,7 @@ class RangeSet(RangeSet):
             stop: The end point. The set does not contain this point.
             step: The step between elements of the set
             within: The superset of this set
-            **kwargs:
+            **kwargs: Keyword arguments that are passed to Pyomo's RangeSet
         """
         if stop is None:
             raise ValueError("Must specify a stopping point")

@@ -12,7 +12,7 @@ TEST_INPUT_FILE = "excel_files/General_input_new_simple.xlsx"
 # There is only the total_cost, but there could be more things we can check
 # to make sure nothing happens in refactorings.
 TEST_OUTPUT = {
-    'total_cost': 3751.59261516593,
+    'total_cost': 3444.89158311401,
 }
 
 SOLVER = "glpk"
