@@ -1,21 +1,36 @@
 """
 Provides functionality for handling a request format's converter.
 """
-from typing import List, Optional, Dict
+from typing import List, Optional, Union, Dict
+
+from pyomo.core.base import Model, Var
 
 
 class Converter:
     """A wrapper for a request format converter."""
 
-    def __init__(self, converter_request: dict, capacity_converter: dict) -> None:
+    def __init__(self, converter_request: dict, capacity_converter: dict,
+                 model: Model) -> None:
         """Create a new wrapper for a converter.
 
         Args:
             converter_request: The converter in the request format
             capacity_converter: The capacity associated with the converter
+            model: The parent Pyomo model
         """
         self._converter = converter_request
         self._capacity = capacity_converter
+        self._model = model
+
+    @property
+    def capacity(self) -> Union[float, Var]:
+        capacity = self._converter['capacity']
+
+        if isinstance(capacity, str):
+            # References a capacity variable
+            return getattr(self._model, capacity)
+
+        return capacity
 
     @property
     def min_load(self) -> Optional[float]:
@@ -29,10 +44,27 @@ class Converter:
         """Is the converter solar?"""
         return self.is_roof_tech
 
+    def get_capacity(self, output_stream: str) -> Union[float, str]:
+        """
+        Get the capacity for the converter for an output stream.
+
+        Args:
+            output_stream: The name of the output stream
+
+        Returns:
+            The variable for the capacity or a constant
+        """
+        if self.is_chp and output_stream == 'Elec':
+            return self.capacity / self._output_ratio
+        elif output_stream in self.outputs:
+            return self.capacity
+
+        return 0.0
+
     @property
     def max_capacity(self) -> float:
         """The maximum capacity of the converter."""
-        return self._converter['capacity']
+        return self.capacity
 
     @property
     def has_part_load(self) -> bool:

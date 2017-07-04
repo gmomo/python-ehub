@@ -155,13 +155,13 @@ class _NewFormatConverter(Converter):
 
                 capacity['options'] = options
 
-            if lower_bound or upper_bound:
+            if lower_bound != '' or upper_bound != '':
                 capacity['bounds'] = {}
 
-                if lower_bound is not None:
+                with suppress(ValueError):
                     capacity['bounds']['lower'] = int(lower_bound)
 
-                if upper_bound is not None:
+                with suppress(ValueError):
                     capacity['bounds']['upper'] = int(upper_bound)
 
             capacities.append(capacity)
@@ -201,7 +201,7 @@ class _NewFormatConverter(Converter):
 
             if capacity is not None:
                 try:
-                    capacity = int(capacity)
+                    capacity = float(capacity)
                 except ValueError:
                     # References a capacity in the capacities
                     capacity = str(capacity)

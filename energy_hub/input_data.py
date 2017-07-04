@@ -2,11 +2,11 @@
 Provides functionality for handling the request format for using in the
 EHubModel.
 """
-
 from collections import defaultdict
-from typing import List, Optional, Dict, TypeVar, Tuple, Iterable
+from typing import List, Optional, Dict, TypeVar, Tuple, Union, Iterable
 
 import pandas as pd
+from pyomo.core.base import Var, Model
 
 from energy_hub.capacity import Capacity
 from energy_hub.utils import cached_property
@@ -22,13 +22,14 @@ class InputData:
     """Provides convenient access to needed data to implement an energy hub
     model."""
 
-    def __init__(self, request: dict) -> None:
+    def __init__(self, request: dict, model: Model) -> None:
         """Create a new instance.
 
         Args:
             request: A dictionary in request format
         """
         self._request = request
+        self._model = model
 
     @cached_property
     def capacities(self) -> List[Capacity]:
@@ -73,7 +74,7 @@ class InputData:
         def _make(converter):
             capacity = self._get_capacity(converter['capacity'])
 
-            return Converter(converter, capacity)
+            return Converter(converter, capacity, self._model)
 
         return [_make(converter) for converter in self._request['converters']]
 
@@ -179,8 +180,9 @@ class InputData:
 
     @cached_property
     def solar_techs(self) -> List[str]:
-        """The names of the solar converters."""
-        return [tech.name for tech in self.converters if tech.is_solar]
+        """The name s of the solar converters."""
+        return [tech.name for  tech in self.converters
+                if tech.is_solar]
 
     @cached_property
     def part_load(self) -> Dict[Tuple[str, str], float]:
@@ -196,6 +198,19 @@ class InputData:
                         part_load[tech.name, output_stream] = min_load
 
         return part_load
+
+    @property
+    def converters_capacity(self) -> Dict[Tuple[str, str], Union[float, Var]]:
+        """Return the capacities of the converters."""
+        return {(tech.name, stream): tech.get_capacity(stream)
+                for tech in self.converters
+                for stream in self.output_stream_names}
+
+    @property
+    def max_capacity_names(self) -> List[str]:
+        """Return the names of non-solar converters."""
+        return [tech.name for tech in self.converters
+                if not (tech.is_grid or tech.is_solar)]
 
     @cached_property
     def max_capacity(self) -> Dict[int, float]:
@@ -303,6 +318,11 @@ class InputData:
         return {stream.name: stream.export_price
                 for stream in self.streams
                 if stream.is_output}
+
+    @property
+    def storage_capacity(self):
+        """The capacity of each storage."""
+        return self._get_from_storages('capacity')
 
     @cached_property
     def storage_charge(self) -> Dict[str, float]:

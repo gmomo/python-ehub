@@ -3,7 +3,7 @@ Provides a class that can either be a reference to a value or a Pyomo variable.
 """
 from typing import List, Dict
 
-from pyomo.core.base import Model, Set
+from pyomo.core.base import Model, Set, NumericConstant, NumericValue
 
 
 class ConstantOrVar:
@@ -37,10 +37,24 @@ class ConstantOrVar:
         if isinstance(value, str):
             # References a variable
             return getattr(self._model, value)
+        elif isinstance(value, NumericValue):
+            # Something already a Pyomo thing
+            return value
 
-        return value
+        return NumericConstant(value)
+
+    def _get_values(self, matrix: Dict) -> Dict:
+        for key, value in matrix.items():
+            if isinstance(value, dict):
+                value = self._get_values(value)
+            elif hasattr(value, 'value'):
+                value = value.name
+
+            matrix[key] = value
+
+        return matrix
 
     @property
     def values(self):
         """Return the values."""
-        return self._values
+        return self._get_values(self._values)

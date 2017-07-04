@@ -1,6 +1,7 @@
 """
 Provides functionality for handling a request format's storage.
 """
+from typing import Union
 
 
 class Storage:
@@ -22,6 +23,10 @@ class Storage:
     def name(self) -> str:
         """Return the name of the storage."""
         return self._storage['name']
+
+    @property
+    def capacity(self) -> Union[float, str]:
+        return self._storage['capacity']
 
     @property
     def stream(self) -> str:
