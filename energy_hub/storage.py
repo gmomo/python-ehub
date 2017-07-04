@@ -19,7 +19,8 @@ class Storage:
         self._capacity = capacity_request
 
     @property
-    def name(self):
+    def name(self) -> str:
+        """Return the name of the storage."""
         return self._storage['name']
 
     @property

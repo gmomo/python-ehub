@@ -17,7 +17,8 @@ class TimeSeries:
         self._series = time_series_request
 
     @property
-    def stream(self):
+    def stream(self) -> str:
+        """Return the name of the stream."""
         return self._series['stream']
 
     @property

@@ -2,7 +2,7 @@
 Provides a class for encapsulating an energy hub model.
 """
 import functools
-from typing import List, Tuple
+from typing import Iterable
 
 from pyomo.core.base import (
     ConcreteModel, Set, Param, NonNegativeReals, Binary, Var, Reals,
@@ -119,19 +119,23 @@ class EHubModel:
         data = self._data
         model = self._model
 
-        num_time_steps, num_demands = data.demand_data.shape
+        num_time_steps = data.num_time_steps
+
+        model.streams = Set(initialize=data.stream_names)
+
         model.time = RangeSet(stop=num_time_steps)
         model.sub_time = RangeSet(start=1, stop=num_time_steps,
                                   within=model.time)
 
-        model.technologies = RangeSet(stop=len(data.converters))
+        model.technologies = Set(initialize=data.converter_names)
+        model.techs_without_grid = Set(
+            initialize=data.converter_names_without_grid,
+            within=model.technologies
+        )
 
-        model.techs_without_grid = RangeSet(start=1, stop=len(data.converters),
-                                            within=model.technologies)
-
-        model.storages = RangeSet(stop=len(data.storages))
-        model.energy_carrier = RangeSet(stop=num_demands)
-        model.demands = RangeSet(stop=num_demands)
+        model.storages = Set(initialize=data.storage_names)
+        model.energy_carrier = Set(initialize=data.output_stream_names)
+        model.demands = Set(initialize=data.output_stream_names)
 
         model.techs = Set(initialize=data.max_capacity.keys(),
                           within=model.technologies)
@@ -460,7 +464,7 @@ class EHubModel:
 
         part_load = model.PART_LOAD[disp, out]
         capacity = model.capacities[disp, out]
-        energy_imported = model.energy_imported[disp, out]
+        energy_imported = model.energy_imported[t, disp]
 
         lhs = part_load * capacity
 
@@ -493,37 +497,9 @@ class EHubModel:
         """
         return model.capacities[tech, out] <= model.MAX_CAP_TECHS[tech]
 
-    def _get_stream_from_storage(self, storage_index: int) -> int:
-        """
-        Get the index of the storage's stream.
-
-        Args:
-            storage_index: The index of the storage
-
-        Returns:
-            The index of the storage's stream
-
-        Raises:
-            ValueError: There is no index for the stream's storage
-        """
-        storage = self._data.storages[storage_index - 1]
-        stream_names = [stream.name for stream in self._data.streams]
-
-        try:
-            # Pyomo uses 1-based indexing
-            return stream_names.index(storage.stream) + 1
-        except ValueError:
-            raise ValueError(
-                f'There is no stream "{storage.stream}" in the streams '
-                f'section for "{storage.name}".'
-            ) from None
-
-    def _get_storages_from_stream(self, out: int) -> List[Tuple[int, Storage]]:
-        stream_name = self._data.time_series_list[out - 1].stream
-
-        return [(i, storage)
-                for i, storage in enumerate(self._data.storages, start=1)
-                if storage.stream == stream_name]
+    def _get_storages_from_stream(self, out: str) -> Iterable[Storage]:
+        return (storage for storage in self._data.storages
+                if storage.stream == out)
 
     @constraint('time', 'demands')
     def loads_balance(self, model, t, demand):
@@ -540,9 +516,9 @@ class EHubModel:
 
         total_q_out = 0
         total_q_in = 0
-        for i, _ in self._get_storages_from_stream(demand):
-            total_q_in += model.energy_to_storage[t, i]
-            total_q_out += model.energy_from_storage[t, i]
+        for storage in self._get_storages_from_stream(demand):
+            total_q_in += model.energy_to_storage[t, storage.name]
+            total_q_out += model.energy_from_storage[t, storage.name]
 
         energy_in = 0
         for tech in model.technologies:
@@ -614,6 +590,7 @@ class EHubModel:
 
     @constraint_list()
     def capacity_constraints(self):
+        """Ensure the capacities are within their given bounds."""
         for capacity in self._data.capacities:
             variable = getattr(self._model, capacity.name)
 
@@ -630,14 +607,14 @@ class EHubModel:
     def _add_unknown_storage_constraint(self):
         """Ensure that the storage level at the beginning is equal to it's end
         level."""
-        data = self._data
         model = self._model
 
-        for i in range(data.demand_data.shape[1]):
+        for storage in self._data.storages:
             last_entry = model.time.last()
+            first_entry = model.time.first()
 
-            start_level = model.storage_level[1, i]
-            end_level = model.storage_level[last_entry, i]
+            start_level = model.storage_level[first_entry, storage.name]
+            end_level = model.storage_level[last_entry, storage.name]
 
             yield start_level == end_level
 
@@ -646,22 +623,21 @@ class EHubModel:
         data = self._data
         model = self._model
 
-        dispatch_demands = data.dispatch_demands
-        for i, chp in enumerate(data.chp_list):
-            dd_1 = dispatch_demands[i, 1]
-            dd_0 = dispatch_demands[i, 0]
+        for chp in data.chp_list:
+            elec, heat = sorted(chp.outputs)
+            chp = chp.name
 
-            rhs = (model.CONVERSION_EFFICIENCY[chp, dd_1]
-                   / model.CONVERSION_EFFICIENCY[chp, dd_0]
-                   * model.capacities[chp, dd_0])
-            yield model.capacities[chp, dd_1] == rhs
+            rhs = (model.CONVERSION_EFFICIENCY[chp, heat]
+                   / model.CONVERSION_EFFICIENCY[chp, elec]
+                   * model.capacities[chp, elec])
+            yield model.capacities[chp, heat] == rhs
 
-            yield (model.Ytechnologies[chp, dd_0]
-                   == model.Ytechnologies[chp, dd_1])
+            yield (model.Ytechnologies[chp, elec]
+                   == model.Ytechnologies[chp, heat])
 
-            yield (model.capacities[chp, dd_0]
+            yield (model.capacities[chp, elec]
                    <= model.MAX_CAP_TECHS[chp]
-                   * model.Ytechnologies[chp, dd_0])
+                   * model.Ytechnologies[chp, elec])
 
     def _add_capacity_variables(self):
         for capacity in self._data.capacities:
@@ -716,7 +692,7 @@ class EHubModel:
         # coupling matrix & Technical parameters
         # coupling matrix technology efficiencies
         model.CONVERSION_EFFICIENCY = Param(model.technologies,
-                                            model.energy_carrier,
+                                            model.streams,
                                             initialize=data.c_matrix)
         model.MAX_CAP_TECHS = Param(model.disp_techs,
                                     initialize=data.max_capacity)
@@ -739,7 +715,7 @@ class EHubModel:
 
         # carbon factors
         model.CARBON_FACTORS = Param(model.technologies,
-                                     initialize=data.carb_factors)
+                                     initialize=data.carbon_factors)
         model.MAX_CARBON = Param(initialize=MAX_CARBON)
 
         # Cost parameters
@@ -756,7 +732,7 @@ class EHubModel:
                                       initialize=data.feed_in)
         # Maintenance costs
         model.OMV_COSTS = Param(model.technologies,
-                                initialize=data.var_maintenance_cost)
+                                initialize=data.variable_maintenance_cost)
 
         # Declaring Global Parameters
         model.TIME_HORIZON = Param(within=NonNegativeReals,
@@ -771,7 +747,7 @@ class EHubModel:
 
         # loads
         model.LOADS = Param(model.time, model.demands,
-                            initialize=data.demands)
+                            initialize=data.loads)
         model.SOLAR_EM = Param(model.time, initialize=data.solar_data)
 
         model.NET_PRESENT_VALUE_TECH = Param(model.technologies,

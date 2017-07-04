@@ -12,7 +12,8 @@ Examples:
         ...
     data_formats.response_format.ResponseValidationError
 """
-from typing import Dict, Any, List, Union
+from collections import defaultdict
+from typing import Dict, Any, Union
 import io
 
 import jsonschema
@@ -93,37 +94,43 @@ def validate(instance: dict) -> None:
         raise ResponseValidationError from None
 
 
-def _to_matrix(var: Any) -> Union[List[Any], List[List[Any]]]:
-    if not var:
-        return []
+def _to_matrix(matrix: Union[Dict, Any]) -> Union[Dict, Any]:
+    """
+    Convert a dictionary into a format for pandas's DataFrames.
 
-    # Determine the dimension of the matrix
-    try:
-        dim = len(list(var.keys())[0])
-    except TypeError:
-        dim = 1
+    Examples:
+        >>> _to_matrix({1: 'a', 2: 'b'})
+        {1: 'a', 2: 'b'}
+        >>> _to_matrix({(1, 1): 'a', (1, 2): 'b', (2, 2): 'c'})
+        {1: {1: 'a', 2: 'b'}, 2: {2: 'c'}}
 
-    if dim == 1:
-        return list(var.values())
-    elif dim == 2:
-        keys = var.keys()
+    Args:
+        matrix: The dictionary to convert
 
-        num_rows = max(keys, key=lambda t: t[0])[0] + 1
-        num_columns = max(keys, key=lambda t: t[1])[1] + 1
-
-        matrix = [[0] * num_columns for _ in range(num_rows)]
-
-        for index, value in var.items():
-            row, col = index
-
-            if col < 0 or row < 0:
-                import pdb; pdb.set_trace()
-
-            matrix[row][col] = value
-
+    Returns:
+        The converted dictionary
+    """
+    if not isinstance(matrix, dict):
         return matrix
-    else:
-        raise NotImplementedError
+
+    temp = defaultdict(dict)
+    for key, value in matrix.items():
+        if isinstance(key, tuple):
+            key, *rest = key
+            rest = tuple(rest)
+
+            # Don't want to recurse on an empty tuple
+            if len(rest) == 1:
+                rest = rest[0]
+
+            temp[key][rest] = value
+        else:
+            temp[key] = value
+
+    for key, value in temp.items():
+        temp[key] = _to_matrix(value)
+
+    return dict(temp)
 
 
 def _get_value(attribute: Union[Var, Param]) -> Any:
