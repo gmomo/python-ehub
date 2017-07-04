@@ -19,6 +19,7 @@ import excel_to_request_format
 from data_formats import response_format
 from energy_hub import Storage
 from energy_hub.input_data import InputData
+from energy_hub.param_var import ConstantOrVar
 from energy_hub.range_set import RangeSet
 from config import SETTINGS
 
@@ -90,15 +91,14 @@ class EHubModel:
             excel: The Excel 2003 file for input data
             request: The request format dictionary
         """
-        self._model = None
+        self._model = ConcreteModel()
         self._data = None
 
         if excel:
             request = excel_to_request_format.convert(excel)
-            self._data = InputData(request)
 
         if request:
-            self._data = InputData(request)
+            self._data = InputData(request, self._model)
 
         if self._data:
             self._prepare()
@@ -106,12 +106,10 @@ class EHubModel:
             raise RuntimeError("Can't create a hub with no data.")
 
     def _prepare(self):
-        self._model = ConcreteModel()
-
         self._create_sets()
 
-        self._add_parameters()
         self._add_variables()
+        self._add_parameters()
         self._add_constraints()
         self._add_objective()
 
@@ -137,7 +135,7 @@ class EHubModel:
         model.energy_carrier = Set(initialize=data.output_stream_names)
         model.demands = Set(initialize=data.output_stream_names)
 
-        model.techs = Set(initialize=data.max_capacity.keys(),
+        model.techs = Set(initialize=data.max_capacity_names,
                           within=model.technologies)
         model.solar_techs = Set(initialize=data.solar_techs,
                                 within=model.technologies)
@@ -366,7 +364,7 @@ class EHubModel:
         q_out = model.energy_from_storage[t, storage]
 
         calculated_level = (
-            (storage_standing_loss * previous_storage_level)
+            ((1 - storage_standing_loss) * previous_storage_level)
             + (charge_rate * q_in)
             - ((1 / discharge_rate) * q_out)
         )
@@ -543,7 +541,7 @@ class EHubModel:
         """
         conversion_rate = model.CONVERSION_EFFICIENCY[tech, output_type]
 
-        if conversion_rate <= 0:
+        if conversion_rate <= 0 or tech in model.solar_techs:
             return Constraint.Skip
 
         energy_imported = model.energy_imported[t, tech]
@@ -597,7 +595,14 @@ class EHubModel:
             lower_bound = capacity.lower_bound
             upper_bound = capacity.upper_bound
 
-            yield lower_bound <= variable <= upper_bound
+            if lower_bound is not None and upper_bound is not None:
+                yield lower_bound <= variable <= upper_bound
+            elif lower_bound is not None and upper_bound is None:
+                yield lower_bound <= variable
+            elif lower_bound is None and upper_bound is not None:
+                yield variable <= upper_bound
+            else:
+                raise RuntimeError
 
     def _add_constraints(self):
         self._add_constraints_new()
@@ -625,19 +630,20 @@ class EHubModel:
 
         for chp in data.chp_list:
             elec, heat = sorted(chp.outputs)
+            output_ratio = chp.output_ratios
             chp = chp.name
 
-            rhs = (model.CONVERSION_EFFICIENCY[chp, heat]
-                   / model.CONVERSION_EFFICIENCY[chp, elec]
-                   * model.capacities[chp, elec])
-            yield model.capacities[chp, heat] == rhs
+            elec_capacity = model.capacities[chp, elec]
+            heat_capacity = model.capacities[chp, heat]
+            max_capacity = model.MAX_CAP_TECHS[chp]
+
+            yield heat_capacity == elec_capacity * output_ratio[elec]
 
             yield (model.Ytechnologies[chp, elec]
                    == model.Ytechnologies[chp, heat])
 
-            yield (model.capacities[chp, elec]
-                   <= model.MAX_CAP_TECHS[chp]
-                   * model.Ytechnologies[chp, elec])
+            yield (elec_capacity
+                   <= max_capacity * model.Ytechnologies[chp, elec])
 
     def _add_capacity_variables(self):
         for capacity in self._data.capacities:
@@ -647,6 +653,7 @@ class EHubModel:
             setattr(self._model, name, Var(domain=domain))
 
     def _add_variables(self):
+        data = self._data
         model = self._model
 
         self._add_capacity_variables()
@@ -657,8 +664,10 @@ class EHubModel:
         model.energy_exported = Var(model.time, model.energy_carrier,
                                     domain=NonNegativeReals)
 
-        model.capacities = Var(model.technologies, model.energy_carrier,
-                               domain=NonNegativeReals)
+        model.capacities = ConstantOrVar(model.technologies,
+                                         model.energy_carrier,
+                                         model=model,
+                                         values=data.converters_capacity)
 
         model.Ytechnologies = Var(model.technologies, model.energy_carrier,
                                   domain=Binary)
@@ -682,8 +691,9 @@ class EHubModel:
         model.storage_level = Var(model.time, model.storages,
                                   domain=NonNegativeReals)
 
-        model.storage_capacity = Var(model.storages,
-                                     domain=NonNegativeReals)
+        model.storage_capacity = ConstantOrVar(
+            model.storages, model=model, values=self._data.storage_capacity
+        )
 
     def _add_parameters(self):
         data = self._data
@@ -694,8 +704,8 @@ class EHubModel:
         model.CONVERSION_EFFICIENCY = Param(model.technologies,
                                             model.streams,
                                             initialize=data.c_matrix)
-        model.MAX_CAP_TECHS = Param(model.disp_techs,
-                                    initialize=data.max_capacity)
+        model.MAX_CAP_TECHS = ConstantOrVar(model.disp_techs, model=model,
+                                            values=data.max_capacity)
 
         model.MAX_CHARGE_RATE = Param(model.storages,
                                       initialize=data.storage_charge)
