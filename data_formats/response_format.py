@@ -195,7 +195,11 @@ def create_response(results: SolverResults, model: Model) -> Dict[str, Any]:
     results = results.json_repn()
 
     solver = results['Solver'][0]
-    solution = results['Solution'][1]
+
+    if 'Solution' in results:
+        solution = results['Solution'][1]
+    else:
+        solution = {'Objective': {'total_cost_objective': {'Value': None}}}
 
     result = {
         'version': '0.1.0',
@@ -211,7 +215,6 @@ def create_response(results: SolverResults, model: Model) -> Dict[str, Any]:
             'variables': _get_variables(model),
             'parameters': _get_parameters(model),
             'param_or_var': _get_variable_parameters(model),
-            'constraints': _get_constraints(model),
             'sets': _get_sets(model),
         }
     }
