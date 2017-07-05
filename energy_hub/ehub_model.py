@@ -21,7 +21,13 @@ from energy_hub import Storage
 from energy_hub.input_data import InputData
 from energy_hub.param_var import ConstantOrVar
 from energy_hub.range_set import RangeSet
-from config import SETTINGS
+
+DEFAULT_SOLVER_SETTINGS = {
+    'name': 'glpk',
+    'options': {
+        'mipgap': 0.05,
+    },
+}
 
 BIG_M = 5000
 TIME_HORIZON = 20
@@ -767,9 +773,12 @@ class EHubModel:
                                                 domain=NonNegativeReals,
                                                 initialize=data.storage_npv)
 
-    def solve(self):
+    def solve(self, solver_settings: dict = None):
         """
         Solve the model.
+
+        Args:
+            solver_settings: The config options for the solver
 
         Returns:
             The results
@@ -777,8 +786,11 @@ class EHubModel:
         if not self._model:
             raise RuntimeError("Can't solve a model with no data.")
 
-        solver = SETTINGS["solver"]["name"]
-        options = SETTINGS["solver"]["options"]
+        if solver_settings is None:
+            solver_settings = DEFAULT_SOLVER_SETTINGS
+
+        solver = solver_settings["name"]
+        options = solver_settings["options"]
         if options is None:
             options = {}
 
