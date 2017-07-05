@@ -254,6 +254,12 @@ class InputData:
         return linear_cost
 
     @cached_property
+    def fixed_capital_costs(self) -> Dict[str, float]:
+        """Return the fixed capital cost for each converter."""
+        return {converter.name: converter.fixed_capital_cost
+                for converter in self.converters}
+
+    @cached_property
     def interest_rate(self) -> float:
         """The interest rate."""
         return self._request['general']['interest_rate']
