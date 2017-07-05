@@ -14,12 +14,38 @@ etc..
 """
 from collections import OrderedDict
 from contextlib import redirect_stdout
+from typing import Union
 
 import numpy as np
 import pandas as pd
 
 from config import SETTINGS
 from energy_hub import EHubModel
+
+
+def sort_dict(mapping: Union[dict, OrderedDict]) -> OrderedDict:
+    """
+    Sorts a dictionary and all its sub-dicionaries as well.
+
+    Examples:
+        >>> sort_dict({1: 'a', 3: 'c', 2: 'b'})
+        OrderedDict([(1, 'a'), (2, 'b'), (3, 'c')])
+        >>> sort_dict({1: {3: 'c', 2: 'b', 1: 'a'}})
+        OrderedDict([(1, OrderedDict([(1, 'a'), (2, 'b'), (3, 'c')]))])
+
+    Args:
+        mapping: The dictionary to be sorted
+
+    Returns:
+        The sorted dictionary as an OrderedDict
+    """
+    if not isinstance(mapping, dict):
+        return mapping
+
+    for key, value in mapping.items():
+        mapping[key] = sort_dict(value)
+
+    return OrderedDict(sorted(mapping.items()))
 
 
 def print_section(section_name: str, solution_section: dict) -> None:
@@ -36,6 +62,7 @@ def print_section(section_name: str, solution_section: dict) -> None:
     attributes = OrderedDict(sorted(solution_section.items()))
     for name, value in attributes.items():
         if isinstance(value, dict):
+            value = sort_dict(value)
             value = pd.DataFrame.from_dict(value, orient='index')
 
             if list(value.columns) == [0]:
