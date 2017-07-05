@@ -232,26 +232,8 @@ class InputData:
     @cached_property
     def linear_cost(self) -> Dict[Tuple[str, str], float]:
         """Return the linear cost for each tech and each of its outputs."""
-        linear_cost = {}
-        for tech in self.converters:
-            for output_stream in self.output_stream_names:
-                linear_cost[tech.name, output_stream] = 0.0
-
-                # If the tech outputs electricity, remove the other costs.  No
-                # idea why this happens.
-                #
-                # Eg: If a tech outputs Elec and Heat, the linear cost is only
-                # set for Elec and not Heat.
-                if ('Elec' in tech.outputs
-                        and len(tech.outputs) > 1
-                        and output_stream != 'Elec'):
-                    continue
-
-                capital_cost = tech.get_capital_cost(output_stream)
-                if capital_cost is not None:
-                    linear_cost[tech.name, output_stream] = capital_cost
-
-        return linear_cost
+        return {converter.name: converter.capital_cost
+                for converter in self.converters}
 
     @cached_property
     def fixed_capital_costs(self) -> Dict[str, float]:

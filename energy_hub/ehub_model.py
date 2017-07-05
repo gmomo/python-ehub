@@ -209,7 +209,7 @@ class EHubModel:
                            for storage in model.storages)
 
         tech_cost = sum(model.NET_PRESENT_VALUE_TECH[tech]
-                        * model.LINEAR_CAPITAL_COSTS[tech, out]
+                        * model.LINEAR_CAPITAL_COSTS[tech]
                         * model.capacities[tech, out]
                         + (model.FIXED_CAPITAL_COSTS[tech]
                            * model.Ytechnologies[tech])
@@ -733,7 +733,6 @@ class EHubModel:
         # Cost parameters
         # Technologies capital costs
         model.LINEAR_CAPITAL_COSTS = Param(model.technologies,
-                                           model.energy_carrier,
                                            initialize=data.linear_cost)
         model.FIXED_CAPITAL_COSTS = Param(model.technologies,
                                           initialize=data.fixed_capital_costs)
