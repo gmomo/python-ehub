@@ -210,11 +210,10 @@ class EHubModel:
 
         tech_cost = sum(model.NET_PRESENT_VALUE_TECH[tech]
                         * model.LINEAR_CAPITAL_COSTS[tech]
-                        * model.capacities[tech, out]
+                        * model.capacities[tech]
                         + (model.FIXED_CAPITAL_COSTS[tech]
                            * model.Ytechnologies[tech])
-                        for tech in model.techs_without_grid
-                        for out in model.energy_carrier)
+                        for tech in model.techs_without_grid)
 
         cost = tech_cost + storage_cost
         return model.investment_cost == cost
@@ -377,15 +376,14 @@ class EHubModel:
         return current_storage_level == calculated_level
 
     @staticmethod
-    @constraint('technologies', 'energy_carrier')
-    def fix_cost_constant(model, tech, out):
+    @constraint('technologies')
+    def fix_cost_constant(model, tech):
         """
         Args:
             model: The Pyomo model
             tech: A converter
-            out: A storage
         """
-        capacity = model.capacities[tech, out]
+        capacity = model.capacities[tech]
         rhs = model.BIG_M * model.Ytechnologies[tech]
         return capacity <= rhs
 
@@ -399,11 +397,9 @@ class EHubModel:
             model: The Pyomo model
             roof: A roof converter
         """
-        roof_area = sum(model.capacities[roof, d]
-                        for d in model.energy_carrier)
-        max_roof_area = model.MAX_SOLAR_AREA
+        roof_area = model.capacities[roof]
 
-        return roof_area <= max_roof_area
+        return roof_area <= model.MAX_SOLAR_AREA
 
     @staticmethod
     @constraint('time', 'solar_techs', 'energy_carrier')
@@ -423,7 +419,7 @@ class EHubModel:
             return Constraint.Skip
 
         energy_imported = model.energy_imported[t, solar_tech]
-        capacity = model.capacities[solar_tech, out]
+        capacity = model.capacities[solar_tech]
 
         rhs = model.SOLAR_EM[t] * capacity
 
@@ -467,7 +463,7 @@ class EHubModel:
             return Constraint.Skip
 
         part_load = model.PART_LOAD[disp, out]
-        capacity = model.capacities[disp, out]
+        capacity = model.capacities[disp]
         energy_imported = model.energy_imported[t, disp]
 
         lhs = part_load * capacity
@@ -486,20 +482,19 @@ class EHubModel:
             out:
         """
         if model.CONVERSION_EFFICIENCY[tech, out] <= 0:
-            return model.capacities[tech, out] == 0
+            return model.capacities[tech] == 0
 
         return Constraint.Skip
 
     @staticmethod
-    @constraint('disp_techs', 'energy_carrier')
-    def max_capacity(model, tech, out):
+    @constraint('disp_techs')
+    def max_capacity(model, tech):
         """
         Args:
             model: The Pyomo model
             tech: A converter
-            out:
         """
-        return model.capacities[tech, out] <= model.MAX_CAP_TECHS[tech]
+        return model.capacities[tech] <= model.MAX_CAP_TECHS[tech]
 
     def _get_storages_from_stream(self, out: str) -> Iterable[Storage]:
         return (storage for storage in self._data.storages
@@ -551,7 +546,7 @@ class EHubModel:
             return Constraint.Skip
 
         energy_imported = model.energy_imported[t, tech]
-        capacity = model.capacities[tech, output_type]
+        capacity = model.capacities[tech]
 
         energy_in = energy_imported * conversion_rate
 
@@ -629,25 +624,6 @@ class EHubModel:
 
             yield start_level == end_level
 
-    @constraint_list()
-    def _add_various_constraints(self):
-        data = self._data
-        model = self._model
-
-        for chp in data.chp_list:
-            elec, heat = sorted(chp.outputs)
-            output_ratio = chp.output_ratios
-            chp = chp.name
-
-            elec_capacity = model.capacities[chp, elec]
-            heat_capacity = model.capacities[chp, heat]
-            max_capacity = model.MAX_CAP_TECHS[chp]
-
-            yield heat_capacity == elec_capacity * output_ratio[elec]
-
-            yield (elec_capacity
-                   <= max_capacity * model.Ytechnologies[chp])
-
     def _add_capacity_variables(self):
         for capacity in self._data.capacities:
             domain = capacity.domain
@@ -668,7 +644,6 @@ class EHubModel:
                                     domain=NonNegativeReals)
 
         model.capacities = ConstantOrVar(model.technologies,
-                                         model.energy_carrier,
                                          model=model,
                                          values=data.converters_capacity)
 

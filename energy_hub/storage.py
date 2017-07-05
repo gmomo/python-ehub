@@ -26,6 +26,7 @@ class Storage:
 
     @property
     def capacity(self) -> Union[float, str]:
+        """Return the capacity of the storage."""
         return self._storage['capacity']
 
     @property

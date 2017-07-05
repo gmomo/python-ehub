@@ -36,6 +36,8 @@ def test(excel_file):
     return _wrapper
 
 
+# Tests' names can be more verbose than usual
+# pylint: disable=invalid-name
 class Tests:
     """
     The class that holds all the tests

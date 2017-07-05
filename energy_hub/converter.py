@@ -24,13 +24,8 @@ class Converter:
 
     @property
     def capacity(self) -> Union[float, Var]:
-        capacity = self._converter['capacity']
-
-        if isinstance(capacity, str):
-            # References a capacity variable
-            return getattr(self._model, capacity)
-
-        return capacity
+        """Return the capacity of the converter."""
+        return self._converter['capacity']
 
     @property
     def min_load(self) -> Optional[float]:
@@ -43,23 +38,6 @@ class Converter:
     def is_solar(self) -> bool:
         """Is the converter solar?"""
         return self.is_roof_tech
-
-    def get_capacity(self, output_stream: str) -> Union[float, str]:
-        """
-        Get the capacity for the converter for an output stream.
-
-        Args:
-            output_stream: The name of the output stream
-
-        Returns:
-            The variable for the capacity or a constant
-        """
-        if self.is_chp and output_stream == 'Elec':
-            return self.capacity / self._output_ratio
-        elif output_stream in self.outputs:
-            return self.capacity
-
-        return 0.0
 
     @property
     def max_capacity(self) -> float:
