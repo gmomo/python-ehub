@@ -150,16 +150,10 @@ class Converter:
 
         return 0
 
-    def get_capital_cost(self, output_stream: str) -> Optional[float]:
-        """Return the capital cost associated with the output_stream.
-
-        Args:
-            output_stream: The name of the output stream
-        """
-        if output_stream in self.outputs:
-            return self._converter['capital_cost']
-
-        return None
+    @property
+    def capital_cost(self) -> float:
+        """Return the capital cost of the converter."""
+        return self._converter['capital_cost']
 
     @property
     def is_grid(self) -> bool:
