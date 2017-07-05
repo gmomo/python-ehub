@@ -1,5 +1,8 @@
 # Explanation of variables and parameters
 
+**Note: This document will get out of date quickly. See the code for more 
+up-to-date explanation.**
+
 ## Sets
 
 * Technology: model.In
