@@ -212,7 +212,7 @@ class EHubModel:
                         * model.LINEAR_CAPITAL_COSTS[tech, out]
                         * model.capacities[tech, out]
                         # + (model.fixCapCosts[tech,out]
-                        # * model.Ytechnologies[tech,out])
+                        # * model.Ytechnologies[tech])
                         for tech in model.techs_without_grid
                         for out in model.energy_carrier)
 
@@ -386,7 +386,7 @@ class EHubModel:
             out: A storage
         """
         capacity = model.capacities[tech, out]
-        rhs = model.BIG_M * model.Ytechnologies[tech, out]
+        rhs = model.BIG_M * model.Ytechnologies[tech]
         return capacity <= rhs
 
     @staticmethod
@@ -645,11 +645,8 @@ class EHubModel:
 
             yield heat_capacity == elec_capacity * output_ratio[elec]
 
-            yield (model.Ytechnologies[chp, elec]
-                   == model.Ytechnologies[chp, heat])
-
             yield (elec_capacity
-                   <= max_capacity * model.Ytechnologies[chp, elec])
+                   <= max_capacity * model.Ytechnologies[chp])
 
     def _add_capacity_variables(self):
         for capacity in self._data.capacities:
@@ -675,8 +672,7 @@ class EHubModel:
                                          model=model,
                                          values=data.converters_capacity)
 
-        model.Ytechnologies = Var(model.technologies, model.energy_carrier,
-                                  domain=Binary)
+        model.Ytechnologies = Var(model.technologies, domain=Binary)
 
         model.Yon = Var(model.time, model.technologies, domain=Binary)
 
