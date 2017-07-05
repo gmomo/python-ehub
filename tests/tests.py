@@ -68,6 +68,8 @@ class Tests:
             assert energy_imported[t]['PV'] == 50
             assert energy_imported[t]['Grid'] == 0
 
+        assert variables['total_cost'] == 17832.5
+
     @staticmethod
     @test('fixed_capital_costs.xlsx')
     def ensure_fixed_capital_costs_are_added(results):
@@ -88,6 +90,8 @@ class Tests:
         storage_levels = [0, 50, 100, 50, 0]
         for t, level in enumerate(storage_levels):
             assert storage_level[t][battery] == level
+
+        assert variables['total_cost'] == 17818.5
 
     def run(self):
         """Run all the tests."""
