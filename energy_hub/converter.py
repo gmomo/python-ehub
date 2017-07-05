@@ -137,6 +137,19 @@ class Converter:
         return (not self.is_solar
                 and self.name != 'Grid')
 
+    @property
+    def fixed_capital_cost(self) -> float:
+        """
+        Return the fixed capital cost of the converter.
+
+        Returns:
+            The fixed capital cost if it has one or 0.
+        """
+        if 'fixed_capital_cost' in self._converter:
+            return self._converter['fixed_capital_cost']
+
+        return 0
+
     def get_capital_cost(self, output_stream: str) -> Optional[float]:
         """Return the capital cost associated with the output_stream.
 

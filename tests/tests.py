@@ -53,6 +53,14 @@ class Tests:
             assert energy_imported[t]['Grid'] == 0
 
     @staticmethod
+    @test('fixed_capital_costs.xlsx')
+    def ensure_fixed_capital_costs_are_added(results):
+        """Ensure there are fixed capital costs."""
+        parameters = results['solution']['parameters']
+
+        assert parameters['FIXED_CAPITAL_COSTS']['PV'] == 100
+
+    @staticmethod
     @test('storage.xlsx')
     def ensure_storage_works(results):
         """Ensure that storages work."""

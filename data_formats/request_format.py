@@ -149,6 +149,11 @@ SCHEMA = {
                             },
                         ],
                     },
+                    'fixed_capital_cost': {
+                        'type': 'number',
+                        'minimum': 0,
+                        'default': 0,
+                    },
                     'capital_cost': {
                         'type': 'number',
                         'minimum': 0,
