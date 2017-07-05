@@ -73,7 +73,7 @@ def main():
     """The main function for the CLI."""
     model = EHubModel(excel=SETTINGS["input_file"])
 
-    results = model.solve()
+    results = model.solve(SETTINGS['solver'])
 
     pretty_print(results)
 

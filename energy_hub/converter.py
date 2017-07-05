@@ -24,13 +24,8 @@ class Converter:
 
     @property
     def capacity(self) -> Union[float, Var]:
-        capacity = self._converter['capacity']
-
-        if isinstance(capacity, str):
-            # References a capacity variable
-            return getattr(self._model, capacity)
-
-        return capacity
+        """Return the capacity of the converter."""
+        return self._converter['capacity']
 
     @property
     def min_load(self) -> Optional[float]:
@@ -43,23 +38,6 @@ class Converter:
     def is_solar(self) -> bool:
         """Is the converter solar?"""
         return self.is_roof_tech
-
-    def get_capacity(self, output_stream: str) -> Union[float, str]:
-        """
-        Get the capacity for the converter for an output stream.
-
-        Args:
-            output_stream: The name of the output stream
-
-        Returns:
-            The variable for the capacity or a constant
-        """
-        if self.is_chp and output_stream == 'Elec':
-            return self.capacity / self._output_ratio
-        elif output_stream in self.outputs:
-            return self.capacity
-
-        return 0.0
 
     @property
     def max_capacity(self) -> float:
@@ -137,16 +115,23 @@ class Converter:
         return (not self.is_solar
                 and self.name != 'Grid')
 
-    def get_capital_cost(self, output_stream: str) -> Optional[float]:
-        """Return the capital cost associated with the output_stream.
-
-        Args:
-            output_stream: The name of the output stream
+    @property
+    def fixed_capital_cost(self) -> float:
         """
-        if output_stream in self.outputs:
-            return self._converter['capital_cost']
+        Return the fixed capital cost of the converter.
 
-        return None
+        Returns:
+            The fixed capital cost if it has one or 0.
+        """
+        if 'fixed_capital_cost' in self._converter:
+            return self._converter['fixed_capital_cost']
+
+        return 0
+
+    @property
+    def capital_cost(self) -> float:
+        """Return the capital cost of the converter."""
+        return self._converter['capital_cost']
 
     @property
     def is_grid(self) -> bool:

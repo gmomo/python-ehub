@@ -202,9 +202,8 @@ class InputData:
     @property
     def converters_capacity(self) -> Dict[Tuple[str, str], Union[float, Var]]:
         """Return the capacities of the converters."""
-        return {(tech.name, stream): tech.get_capacity(stream)
-                for tech in self.converters
-                for stream in self.output_stream_names}
+        return {tech.name: tech.capacity
+                for tech in self.converters}
 
     @property
     def max_capacity_names(self) -> List[str]:
@@ -232,26 +231,14 @@ class InputData:
     @cached_property
     def linear_cost(self) -> Dict[Tuple[str, str], float]:
         """Return the linear cost for each tech and each of its outputs."""
-        linear_cost = {}
-        for tech in self.converters:
-            for output_stream in self.output_stream_names:
-                linear_cost[tech.name, output_stream] = 0.0
+        return {converter.name: converter.capital_cost
+                for converter in self.converters}
 
-                # If the tech outputs electricity, remove the other costs.  No
-                # idea why this happens.
-                #
-                # Eg: If a tech outputs Elec and Heat, the linear cost is only
-                # set for Elec and not Heat.
-                if ('Elec' in tech.outputs
-                        and len(tech.outputs) > 1
-                        and output_stream != 'Elec'):
-                    continue
-
-                capital_cost = tech.get_capital_cost(output_stream)
-                if capital_cost is not None:
-                    linear_cost[tech.name, output_stream] = capital_cost
-
-        return linear_cost
+    @cached_property
+    def fixed_capital_costs(self) -> Dict[str, float]:
+        """Return the fixed capital cost for each converter."""
+        return {converter.name: converter.fixed_capital_cost
+                for converter in self.converters}
 
     @cached_property
     def interest_rate(self) -> float:

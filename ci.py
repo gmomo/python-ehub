@@ -70,6 +70,14 @@ def main() -> None:
         except CheckError:
             return_code = -1
 
+    print("Running tests...")
+    try:
+        sh.python("tests/tests.py")
+    except sh.ErrorReturnCode:
+        exit(-1)
+    else:
+        print("Tests passed.")
+
     exit(return_code)
 
 

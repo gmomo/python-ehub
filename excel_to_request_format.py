@@ -190,14 +190,17 @@ class _NewFormatConverter(Converter):
     def _get_converters(self):
         converters = []
         for column in self._get_columns('Converters'):
-            (name, capacity, capital_cost, annual_maintenance_cost,
-             usage_maintenance_cost, efficiency, lifetime, output_ratio,
-             min_load, inputs, outputs) = column
+            (name, capacity, fixed_capital_cost, capital_cost,
+             annual_maintenance_cost, usage_maintenance_cost, efficiency,
+             lifetime, output_ratio, min_load, inputs, outputs) = column
 
             converter = {
                 'name': name.strip(),
                 'efficiency': float(efficiency),
             }
+
+            with suppress(ValueError):
+                converter['fixed_capital_cost'] = float(fixed_capital_cost)
 
             if capacity is not None:
                 try:

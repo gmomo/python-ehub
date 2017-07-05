@@ -21,7 +21,13 @@ from energy_hub import Storage
 from energy_hub.input_data import InputData
 from energy_hub.param_var import ConstantOrVar
 from energy_hub.range_set import RangeSet
-from config import SETTINGS
+
+DEFAULT_SOLVER_SETTINGS = {
+    'name': 'glpk',
+    'options': {
+        'mipgap': 0.05,
+    },
+}
 
 BIG_M = 5000
 TIME_HORIZON = 20
@@ -203,12 +209,11 @@ class EHubModel:
                            for storage in model.storages)
 
         tech_cost = sum(model.NET_PRESENT_VALUE_TECH[tech]
-                        * model.LINEAR_CAPITAL_COSTS[tech, out]
-                        * model.capacities[tech, out]
-                        # + (model.fixCapCosts[tech,out]
-                        # * model.Ytechnologies[tech,out])
-                        for tech in model.techs_without_grid
-                        for out in model.energy_carrier)
+                        * model.LINEAR_CAPITAL_COSTS[tech]
+                        * model.capacities[tech]
+                        + (model.FIXED_CAPITAL_COSTS[tech]
+                           * model.Ytechnologies[tech])
+                        for tech in model.techs_without_grid)
 
         cost = tech_cost + storage_cost
         return model.investment_cost == cost
@@ -371,16 +376,15 @@ class EHubModel:
         return current_storage_level == calculated_level
 
     @staticmethod
-    @constraint('technologies', 'energy_carrier')
-    def fix_cost_constant(model, tech, out):
+    @constraint('technologies')
+    def fix_cost_constant(model, tech):
         """
         Args:
             model: The Pyomo model
             tech: A converter
-            out: A storage
         """
-        capacity = model.capacities[tech, out]
-        rhs = model.BIG_M * model.Ytechnologies[tech, out]
+        capacity = model.capacities[tech]
+        rhs = model.BIG_M * model.Ytechnologies[tech]
         return capacity <= rhs
 
     @staticmethod
@@ -393,11 +397,9 @@ class EHubModel:
             model: The Pyomo model
             roof: A roof converter
         """
-        roof_area = sum(model.capacities[roof, d]
-                        for d in model.energy_carrier)
-        max_roof_area = model.MAX_SOLAR_AREA
+        roof_area = model.capacities[roof]
 
-        return roof_area <= max_roof_area
+        return roof_area <= model.MAX_SOLAR_AREA
 
     @staticmethod
     @constraint('time', 'solar_techs', 'energy_carrier')
@@ -417,7 +419,7 @@ class EHubModel:
             return Constraint.Skip
 
         energy_imported = model.energy_imported[t, solar_tech]
-        capacity = model.capacities[solar_tech, out]
+        capacity = model.capacities[solar_tech]
 
         rhs = model.SOLAR_EM[t] * capacity
 
@@ -461,7 +463,7 @@ class EHubModel:
             return Constraint.Skip
 
         part_load = model.PART_LOAD[disp, out]
-        capacity = model.capacities[disp, out]
+        capacity = model.capacities[disp]
         energy_imported = model.energy_imported[t, disp]
 
         lhs = part_load * capacity
@@ -471,29 +473,14 @@ class EHubModel:
         return lhs <= rhs
 
     @staticmethod
-    @constraint('technologies', 'energy_carrier')
-    def capacity(model, tech, out):
+    @constraint('disp_techs')
+    def max_capacity(model, tech):
         """
         Args:
             model: The Pyomo model
             tech: A converter
-            out:
         """
-        if model.CONVERSION_EFFICIENCY[tech, out] <= 0:
-            return model.capacities[tech, out] == 0
-
-        return Constraint.Skip
-
-    @staticmethod
-    @constraint('disp_techs', 'energy_carrier')
-    def max_capacity(model, tech, out):
-        """
-        Args:
-            model: The Pyomo model
-            tech: A converter
-            out:
-        """
-        return model.capacities[tech, out] <= model.MAX_CAP_TECHS[tech]
+        return model.capacities[tech] <= model.MAX_CAP_TECHS[tech]
 
     def _get_storages_from_stream(self, out: str) -> Iterable[Storage]:
         return (storage for storage in self._data.storages
@@ -545,7 +532,7 @@ class EHubModel:
             return Constraint.Skip
 
         energy_imported = model.energy_imported[t, tech]
-        capacity = model.capacities[tech, output_type]
+        capacity = model.capacities[tech]
 
         energy_in = energy_imported * conversion_rate
 
@@ -623,28 +610,6 @@ class EHubModel:
 
             yield start_level == end_level
 
-    @constraint_list()
-    def _add_various_constraints(self):
-        data = self._data
-        model = self._model
-
-        for chp in data.chp_list:
-            elec, heat = sorted(chp.outputs)
-            output_ratio = chp.output_ratios
-            chp = chp.name
-
-            elec_capacity = model.capacities[chp, elec]
-            heat_capacity = model.capacities[chp, heat]
-            max_capacity = model.MAX_CAP_TECHS[chp]
-
-            yield heat_capacity == elec_capacity * output_ratio[elec]
-
-            yield (model.Ytechnologies[chp, elec]
-                   == model.Ytechnologies[chp, heat])
-
-            yield (elec_capacity
-                   <= max_capacity * model.Ytechnologies[chp, elec])
-
     def _add_capacity_variables(self):
         for capacity in self._data.capacities:
             domain = capacity.domain
@@ -665,12 +630,10 @@ class EHubModel:
                                     domain=NonNegativeReals)
 
         model.capacities = ConstantOrVar(model.technologies,
-                                         model.energy_carrier,
                                          model=model,
                                          values=data.converters_capacity)
 
-        model.Ytechnologies = Var(model.technologies, model.energy_carrier,
-                                  domain=Binary)
+        model.Ytechnologies = Var(model.technologies, domain=Binary)
 
         model.Yon = Var(model.time, model.technologies, domain=Binary)
 
@@ -731,8 +694,9 @@ class EHubModel:
         # Cost parameters
         # Technologies capital costs
         model.LINEAR_CAPITAL_COSTS = Param(model.technologies,
-                                           model.energy_carrier,
                                            initialize=data.linear_cost)
+        model.FIXED_CAPITAL_COSTS = Param(model.technologies,
+                                          initialize=data.fixed_capital_costs)
         model.LINEAR_STORAGE_COSTS = Param(model.storages,
                                            initialize=data.storage_lin_cost)
         # Operating prices technologies
@@ -767,9 +731,12 @@ class EHubModel:
                                                 domain=NonNegativeReals,
                                                 initialize=data.storage_npv)
 
-    def solve(self):
+    def solve(self, solver_settings: dict = None):
         """
         Solve the model.
+
+        Args:
+            solver_settings: The config options for the solver
 
         Returns:
             The results
@@ -777,8 +744,11 @@ class EHubModel:
         if not self._model:
             raise RuntimeError("Can't solve a model with no data.")
 
-        solver = SETTINGS["solver"]["name"]
-        options = SETTINGS["solver"]["options"]
+        if solver_settings is None:
+            solver_settings = DEFAULT_SOLVER_SETTINGS
+
+        solver = solver_settings["name"]
+        options = solver_settings["options"]
         if options is None:
             options = {}
 
