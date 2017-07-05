@@ -473,20 +473,6 @@ class EHubModel:
         return lhs <= rhs
 
     @staticmethod
-    @constraint('technologies', 'energy_carrier')
-    def capacity(model, tech, out):
-        """
-        Args:
-            model: The Pyomo model
-            tech: A converter
-            out:
-        """
-        if model.CONVERSION_EFFICIENCY[tech, out] <= 0:
-            return model.capacities[tech] == 0
-
-        return Constraint.Skip
-
-    @staticmethod
     @constraint('disp_techs')
     def max_capacity(model, tech):
         """

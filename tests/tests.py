@@ -44,6 +44,20 @@ class Tests:
     """
 
     @staticmethod
+    @test('elec_and_heat_demands.xlsx')
+    def elec_and_heat_demands(results):
+        """Ensure that we can have multiple demand streams."""
+        variables = results['solution']['variables']
+
+        energy_imported = variables['energy_imported']
+        for t in range(0, 4):
+            assert energy_imported[t]['PV'] == 50
+            assert energy_imported[t]['Boiler'] == 50
+            assert energy_imported[t]['Grid'] == 0
+
+        assert variables['total_cost'] == 1039
+
+    @staticmethod
     @test('pv.xlsx')
     def ensure_pv_works(results):
         """Ensure that PV works."""
