@@ -202,9 +202,8 @@ class InputData:
     @property
     def converters_capacity(self) -> Dict[Tuple[str, str], Union[float, Var]]:
         """Return the capacities of the converters."""
-        return {(tech.name, stream): tech.get_capacity(stream)
-                for tech in self.converters
-                for stream in self.output_stream_names}
+        return {tech.name: tech.capacity
+                for tech in self.converters}
 
     @property
     def max_capacity_names(self) -> List[str]:
