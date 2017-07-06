@@ -5,7 +5,7 @@ This file contains terminology that is used throughout the project.
 ## Table of Contents
 
 - [Pyomo](#pyomo)
-- [Request Format/Excel Sheet](#reqest-format/excel-sheet)
+- [Request Format/Excel Sheet](#request-formatexcel-sheet)
 - [Civil Engineering](#civil-engineering)
 
 ## Pyomo
