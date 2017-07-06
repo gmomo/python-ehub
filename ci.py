@@ -16,6 +16,7 @@ Returns:
     A standard error code: 0 for success, non-zero for failure
 """
 import os
+import subprocess
 from typing import Iterable
 
 import sh
@@ -71,12 +72,12 @@ def main() -> None:
             return_code = -1
 
     print("Running tests...")
-    try:
-        sh.python("tests/tests.py")
-    except sh.ErrorReturnCode:
-        exit(-1)
+    result = subprocess.run(['python3.6', '-m', 'tests.tests'])
+    if result.returncode != 0:
+        print("TESTS FAILED")
+        exit(result.returncode)
     else:
-        print("Tests passed.")
+        print("TESTS PASSED")
 
     exit(return_code)
 
