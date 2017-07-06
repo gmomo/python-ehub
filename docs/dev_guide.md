@@ -36,13 +36,13 @@ From there, it's the same as the core development.
 
 ## Tutorials
 
-- For a tutorial on how to extend the model for your use without modifying the 
+- For a tutorial on how to extend the model for your use without modifying the
 model, see [here](tutorials/extension.py).
 
 ## "What are all these @s?"
 
 This is the function decorator syntax.
 
-The tutorial I used to learn them is 
-[this one](https://www.thecodeship.com/patterns/guide-to-python-function-decorators/).
+A great tutorial on how to use them can be found
+[here](https://www.thecodeship.com/patterns/guide-to-python-function-decorators/).
 
