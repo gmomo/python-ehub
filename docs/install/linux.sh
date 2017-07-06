@@ -2,6 +2,7 @@
 # This file is written in a literate programming way so that it can be run.
 # This can ensure that this file is update to date with the code, if run
 # periodically.
+set -e  # Make errors stop the script if there is any
 
 # First things first, you have to download the files.
 git clone https://github.com/hues-platform/python-ehub.git
