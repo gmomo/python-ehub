@@ -10,6 +10,7 @@ from the root directory.
 import os
 import io
 from contextlib import redirect_stdout
+import functools
 
 from energy_hub import EHubModel
 
@@ -27,13 +28,25 @@ def test(excel_file):
     Returns:
         The decorated method
     """
-    def _wrapper(func):
+    def _decorator(func):
         func.is_test = True
-        func.excel_file = excel_file
 
-        return func
+        @functools.wraps(func)
+        def _wrapper():
+            current_directory = os.path.dirname(os.path.realpath(__file__))
+            excel = os.path.join(current_directory, excel_file)
 
-    return _wrapper
+            model = EHubModel(excel=excel)
+
+            glpk_output = io.StringIO()
+            # Don't want to clutter the stdout
+            with redirect_stdout(glpk_output):
+                results = model.solve()
+
+            func(results)
+
+        return _wrapper
+    return _decorator
 
 
 # Tests' names can be more verbose than usual
@@ -100,20 +113,9 @@ class Tests:
                    if callable(getattr(self, method))]
         tests = (test_ for test_ in methods if hasattr(test_, 'is_test'))
 
-        current_directory = os.path.dirname(os.path.realpath(__file__))
-
         for test_ in tests:
-            excel_file = f"{current_directory}/{test_.excel_file}"
-
-            model = EHubModel(excel=excel_file)
-
-            glpk_output = io.StringIO()
-            # Don't want to clutter the stdout
-            with redirect_stdout(glpk_output):
-                results = model.solve()
-
             try:
-                test_(results)
+                test_()
             except AssertionError as exc:
                 print(f"TEST {test_.__name__} FAILED")
 
