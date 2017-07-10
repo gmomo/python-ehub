@@ -1,7 +1,6 @@
 """
 Provides a class for encapsulating an energy hub model.
 """
-import functools
 from typing import Iterable
 
 from pyomo.core.base import (
@@ -21,6 +20,7 @@ from data_formats.request_format import Storage
 from energy_hub.input_data import InputData
 from energy_hub.param_var import ConstantOrVar
 from energy_hub.range_set import RangeSet
+from energy_hub.utils import constraint, constraint_list
 
 DEFAULT_SOLVER_SETTINGS = {
     'name': 'glpk',
@@ -33,56 +33,6 @@ BIG_M = 5000
 TIME_HORIZON = 20
 MAX_CARBON = 650000
 MAX_SOLAR_AREA = 500
-
-
-def constraint(*args, enabled=True):
-    """
-    Mark a function as a constraint of the model.
-
-    The function that adds these constraints to the model is
-    `_add_constraints_new`.
-
-    Args:
-        *args: The arguments that are passed to Pyomo's Constraint constructor
-        enabled: Is the constraint enabled? Defaults to True.
-
-    Returns:
-        The decorated function
-    """
-    def _wrapper(func):
-        functools.wraps(func)
-
-        func.is_constraint = True
-        func.args = args
-        func.enabled = enabled
-
-        return func
-
-    return _wrapper
-
-
-def constraint_list(*, enabled=True):
-    """
-    Mark a function as a ConstraintList of the model.
-
-    The function has to return a generator. ie: must use a yield in the method
-    body.
-
-    Args:
-        enabled: Is the constraint enabled? Defaults to True.
-
-    Returns:
-        The decorated function
-    """
-    def _wrapper(func):
-        functools.wraps(func)
-
-        func.is_constraint_list = True
-        func.enabled = enabled
-
-        return func
-
-    return _wrapper
 
 
 class EHubModel:
