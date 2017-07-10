@@ -19,8 +19,6 @@ import os
 import subprocess
 from typing import Iterable
 
-import sh
-
 
 class CheckError(Exception):
     """The CI process detected an error."""
@@ -34,13 +32,13 @@ def lint(file: str) -> None:
         file: The relative path of the file to `ci.py`
     """
     print(f"Running pylint on {file}")
+
     try:
-        _ = sh.pylint(file)
-    except sh.ErrorReturnCode as exc:
-        print(f"Pylint output:\n{exc.stdout.decode('utf-8')}")
-        raise CheckError
-    else:
-        print(f"pylint found no errors in {file}")
+        _ = subprocess.check_output(['pylint', file])
+    except subprocess.CalledProcessError as exc:
+        pylint_output = exc.stdout.decode('utf-8')
+
+        raise CheckError(pylint_output)
 
 
 def get_files_to_check(directory: str) -> Iterable[str]:
@@ -54,11 +52,17 @@ def get_files_to_check(directory: str) -> Iterable[str]:
         An iterator over the Python files
     """
     for file in os.listdir(directory):
+        # Don't show the '.'.  It's noise.
+        if directory != '.':
+            file = os.path.join(directory, file)
+
         if file.endswith('.py'):
             yield file
         elif os.path.isdir(file):
-            for inner_file in get_files_to_check(file):
-                yield file + '/' + inner_file
+            inner_directory = file
+
+            for inner_file in get_files_to_check(inner_directory):
+                yield inner_file
 
 
 def main() -> None:
@@ -68,16 +72,14 @@ def main() -> None:
     for file in get_files_to_check('.'):
         try:
             lint(file)
-        except CheckError:
+        except CheckError as exc:
+            print(exc)
             return_code = -1
 
     print("Running tests...")
     result = subprocess.run(['python3.6', '-m', 'tests.tests'])
     if result.returncode != 0:
-        print("TESTS FAILED")
         exit(result.returncode)
-    else:
-        print("TESTS PASSED")
 
     exit(return_code)
 
