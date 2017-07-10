@@ -12,6 +12,7 @@ import io
 from contextlib import redirect_stdout
 import functools
 
+from run import create_logger
 from energy_hub import EHubModel
 
 
@@ -137,4 +138,7 @@ class Tests:
 
 
 if __name__ == "__main__":
+    # Makes it easier to read logs from both sides
+    create_logger('test_logs.log')
+
     Tests().run()
