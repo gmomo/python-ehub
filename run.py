@@ -26,6 +26,7 @@ import argparse
 from collections import OrderedDict
 from contextlib import redirect_stdout
 from typing import Union
+import logging
 
 import pandas as pd
 import yaml
@@ -34,10 +35,13 @@ from energy_hub import EHubModel
 
 
 DEFAULT_CONFIG_FILE = 'config.yaml'
+DEFAULT_LOG_FILE = 'logs.log'
 
 
 def main():
     """The main function for the CLI."""
+    create_logger(DEFAULT_LOG_FILE)
+
     arguments = get_command_line_arguments()
     settings = parse_arguments(arguments)
 
@@ -221,6 +225,61 @@ def sort_dict(mapping: Union[dict, OrderedDict]) -> OrderedDict:
         mapping[key] = sort_dict(value)
 
     return OrderedDict(sorted(mapping.items()))
+
+
+def create_logger(filename: str) -> None:
+    """
+    Add logging to the application.
+
+    Args:
+        filename: The name of the log file
+    """
+    # logging accepts all logs, which are then handled later
+    logging.getLogger().setLevel(logging.DEBUG)
+
+    add_console_handler()
+    add_file_handler(filename)
+
+
+def add_console_handler() -> None:
+    """Add a logging handler for stderr."""
+    # stderr
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.WARNING)
+    console_handler.setFormatter(get_default_formatter())
+
+    logging.getLogger().addHandler(console_handler)
+
+
+def add_file_handler(filename: str) -> None:
+    """
+    Add a logging handler for a log file.
+
+    Args:
+        filename: The name of the log file
+    """
+    file_handler = logging.FileHandler(filename, mode='w')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(get_default_formatter())
+
+    logging.getLogger().addHandler(file_handler)
+
+
+def get_default_formatter() -> logging.Formatter:
+    """
+    Return a default formatter for logging.
+
+    The format is:
+        Hours:Minutes:Second.Milliseconds - Location - [level]: message
+
+    Returns:
+        A logging.Formatter for the default format
+    """
+    return logging.Formatter(
+        '%(asctime)s.%(msecs)03d - %(filename)s:%(lineno)d - '
+        '[%(levelname)s]: %(message)s',
+        datefmt='%H:%M:%S'
+    )
 
 
 if __name__ == "__main__":
