@@ -731,12 +731,13 @@ class EHubModel:
                                                 domain=NonNegativeReals,
                                                 initialize=data.storage_npv)
 
-    def solve(self, solver_settings: dict = None):
+    def solve(self, solver_settings: dict = None, is_verbose: bool = False):
         """
         Solve the model.
 
         Args:
             solver_settings: The config options for the solver
+            is_verbose: Makes it so the solver prints everything
 
         Returns:
             The results
@@ -756,7 +757,7 @@ class EHubModel:
         opt.options = options
         solver_manager = SolverManagerFactory("serial")
 
-        results = solver_manager.solve(self._model, opt=opt, tee=True,
+        results = solver_manager.solve(self._model, opt=opt, tee=is_verbose,
                                        timelimit=None)
 
         # in order to get the solutions found by the solver
