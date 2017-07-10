@@ -8,9 +8,10 @@ from typing import List, Optional, Dict, TypeVar, Tuple, Union, Iterable
 import pandas as pd
 from pyomo.core.base import Var, Model
 
-from energy_hub.capacity import Capacity
+from data_formats.request_format import (
+    Capacity, Converter, Stream, Storage, TimeSeries,
+)
 from energy_hub.utils import cached_property
-from energy_hub import Converter, Stream, Storage, TimeSeries
 
 T = TypeVar('T')
 

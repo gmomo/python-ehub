@@ -90,8 +90,8 @@ def validate(instance: dict) -> None:
     """
     try:
         jsonschema.validate(instance, SCHEMA)
-    except jsonschema.ValidationError:
-        raise ResponseValidationError from None
+    except jsonschema.ValidationError as exc:
+        raise ResponseValidationError from exc
 
 
 def _to_matrix(matrix: Union[Dict, Any]) -> Union[Dict, Any]:

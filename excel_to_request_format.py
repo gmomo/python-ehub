@@ -18,7 +18,6 @@ import argparse
 import json
 from contextlib import suppress
 
-import jsonschema
 import xlrd
 
 from data_formats import request_format
@@ -404,7 +403,7 @@ def main():
     content = convert(args.excel_file)
 
     # Ensure the format is correct
-    jsonschema.validate(content, request_format.SCHEMA)
+    request_format.validate(content)
 
     with open(args.output_file, 'w') as file:
         file.write(json.dumps(content))
