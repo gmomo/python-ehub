@@ -57,6 +57,18 @@ class Tests:
     """
 
     @staticmethod
+    @test('chp.xlsx')
+    def simple_chp(results):
+        """Ensure a simple CHP converter works."""
+        variables = results['solution']['variables']
+
+        assert variables['Grid'] == 0  # Don't use any Grid
+
+        energy_imported = variables['energy_imported']
+        for t in range(0, 4):
+            assert energy_imported[t]['CHP'] == 50
+
+    @staticmethod
     @test('elec_and_heat_demands.xlsx')
     def elec_and_heat_demands(results):
         """Ensure that we can have multiple demand streams."""
