@@ -15,9 +15,6 @@ from energy_hub.utils import cached_property
 
 T = TypeVar('T')
 
-AXIS_ROWS = 0
-AXIS_COLUMNS = 1
-
 
 class InputData:
     """Provides convenient access to needed data to implement an energy hub
