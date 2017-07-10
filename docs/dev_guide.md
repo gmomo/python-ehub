@@ -3,8 +3,8 @@
 This document contains information for extending and modifying the Energy Hub 
 Model.
 
-For more concrete API details, see the code. This will be more up-to-date than 
-this or any other documentation.
+For more concrete API details, see the code.
+That will be more up-to-date than any other documentation.
 
 ## How to Contribute
 
@@ -30,11 +30,9 @@ access to the repo, create a fork of the project on GitHub.
 Then develop on your fork as you wish.
 If you think your changes might be useful to the main core, create a pull
 request from your fork to the repo.
-Then follow the same instructions as for core development: add a main
-collaborator as a reviewer.
-From there, it's the same as the core development.
+Then follow the same instructions as for core development.
 
-## Tutorials
+## Tutorials/Examples
 
 - For a tutorial on how to extend the model for your use without modifying the
 model, see [here](tutorials/extension.py).

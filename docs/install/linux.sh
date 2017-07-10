@@ -66,6 +66,4 @@ cd python-ehub
 # libraries it uses:
 python3.6 -m pip install -r requirements.txt
 
-# That should install all the necessary libraries to run the Energy Hub Model.
-
-# Congratulations, you've installed the Energy Hub Model!
+# Congratulations, you're ready to run the Energy Hub Model!
