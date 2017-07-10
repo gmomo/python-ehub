@@ -17,7 +17,7 @@ import pyomo.environ
 
 import excel_to_request_format
 from data_formats import response_format
-from energy_hub import Storage
+from data_formats.request_format import Storage
 from energy_hub.input_data import InputData
 from energy_hub.param_var import ConstantOrVar
 from energy_hub.range_set import RangeSet
