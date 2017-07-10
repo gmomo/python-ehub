@@ -8,6 +8,7 @@ __pycache__/
 # Generated Files
 out.txt
 output.txt
+*.log
 
 # Other
 .~lock*
