@@ -2,6 +2,7 @@
 Provides a class for encapsulating an energy hub model.
 """
 from typing import Iterable
+import logging
 
 from pyomo.core.base import (
     ConcreteModel, Set, Param, NonNegativeReals, Binary, Var, Reals,
@@ -488,7 +489,7 @@ class EHubModel:
 
         return energy_in <= capacity
 
-    def _add_constraints_new(self):
+    def _add_indexed_constraints(self):
         """Add all the constraint decorated functions to the model."""
         methods = [getattr(self, method)
                    for method in dir(self)
@@ -496,8 +497,12 @@ class EHubModel:
         rules = (rule for rule in methods if hasattr(rule, 'is_constraint'))
 
         for rule in rules:
+            logging.info(f'Found indexed constraint: {rule.__name__}')
             if not rule.enabled:
+                logging.info(f'{rule.__name__} is not enabled')
                 continue
+
+            logging.info(f'{rule.__name__} is enabled')
 
             name = rule.__name__ + '_constraint'
             args = [getattr(self._model, arg) for arg in rule.args]
@@ -512,8 +517,12 @@ class EHubModel:
                  if hasattr(rule, 'is_constraint_list'))
 
         for rule in rules:
+            logging.info(f'Found constraint list: {rule.__name__}')
             if not rule.enabled:
+                logging.info(f'{rule.__name__} is NOT enabled')
                 continue
+
+            logging.info(f'{rule.__name__} is enabled')
 
             name = rule.__name__ + '_constraint_list'
 
@@ -542,7 +551,7 @@ class EHubModel:
                 raise RuntimeError
 
     def _add_constraints(self):
-        self._add_constraints_new()
+        self._add_indexed_constraints()
         self._add_constraint_lists()
 
     @constraint_list()
