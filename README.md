@@ -44,7 +44,7 @@ cd pyhub
 
 Download the repo:
 ```
-git clone https://<username>@bitbucket.org/hues/pyhub.git
+git clone https://github.com/hues-platform/python-ehub.git
 ```
 
 Install the libraries needed for PyHub to run:
