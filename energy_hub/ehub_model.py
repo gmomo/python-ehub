@@ -30,8 +30,6 @@ DEFAULT_SOLVER_SETTINGS = {
 }
 
 BIG_M = 5000
-TIME_HORIZON = 20
-MAX_CARBON = 650000
 MAX_SOLAR_AREA = 500
 
 
@@ -639,7 +637,6 @@ class EHubModel:
         # carbon factors
         model.CARBON_FACTORS = Param(model.technologies,
                                      initialize=data.carbon_factors)
-        model.MAX_CARBON = Param(initialize=MAX_CARBON)
 
         # Cost parameters
         # Technologies capital costs
@@ -659,8 +656,6 @@ class EHubModel:
                                 initialize=data.variable_maintenance_cost)
 
         # Declaring Global Parameters
-        model.TIME_HORIZON = Param(within=NonNegativeReals,
-                                   initialize=TIME_HORIZON)
 
         model.BIG_M = Param(within=NonNegativeReals, initialize=BIG_M)
 
