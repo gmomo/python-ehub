@@ -77,7 +77,7 @@ def main() -> None:
             return_code = -1
 
     print("Running tests...")
-    result = subprocess.run(['python3.6', '-m', 'tests.tests'])
+    result = subprocess.run(['python3.6', '-m', 'tests.system_tests'])
     if result.returncode != 0:
         exit(result.returncode)
 
