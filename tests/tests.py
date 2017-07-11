@@ -7,47 +7,8 @@ This file must be called via
 
 from the root directory.
 """
-import os
-import io
-from contextlib import redirect_stdout
-import functools
-
 from run import create_logger
-from energy_hub import EHubModel
-
-
-def test(excel_file):
-    """
-    A function decorator for a test method.
-
-    The method will be passed the results of solving the model specified in
-    excel_file.
-
-    Args:
-        excel_file: The file to test
-
-    Returns:
-        The decorated method
-    """
-    def _decorator(func):
-        func.is_test = True
-
-        @functools.wraps(func)
-        def _wrapper():
-            current_directory = os.path.dirname(os.path.realpath(__file__))
-            excel = os.path.join(current_directory, excel_file)
-
-            model = EHubModel(excel=excel)
-
-            glpk_output = io.StringIO()
-            # Don't want to clutter the stdout
-            with redirect_stdout(glpk_output):
-                results = model.solve()
-
-            func(results)
-
-        return _wrapper
-    return _decorator
+from tests.utils import test
 
 
 # Tests' names can be more verbose than usual
