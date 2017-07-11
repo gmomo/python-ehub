@@ -8,6 +8,11 @@ import functools
 
 from energy_hub import EHubModel
 
+CONSTANTS = {
+    'BIG_M': 5000,
+    'MAX_SOLAR_AREA': 500,
+}
+
 
 def test(excel_file):
     """
@@ -30,7 +35,7 @@ def test(excel_file):
             current_directory = os.path.dirname(os.path.realpath(__file__))
             excel = os.path.join(current_directory, excel_file)
 
-            model = EHubModel(excel=excel)
+            model = EHubModel(CONSTANTS, excel=excel)
 
             glpk_output = io.StringIO()
             # Don't want to clutter the stdout

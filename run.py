@@ -45,7 +45,7 @@ def main():
     arguments = get_command_line_arguments()
     settings = parse_arguments(arguments)
 
-    model = EHubModel(excel=settings['input_file'])
+    model = EHubModel(settings['constants'], excel=settings['input_file'])
 
     results = model.solve(settings['solver'], is_verbose=settings['verbose'])
 
@@ -149,6 +149,7 @@ def parse_arguments(arguments: dict) -> dict:
         'output_file': output_file,
         'verbose': arguments['is_verbose'],
         'quiet': arguments['is_quiet'],
+        'constants': config_settings['parameters'],
         'solver': {
             'name': solver_name,
             'options': solver_options,

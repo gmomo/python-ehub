@@ -38,13 +38,15 @@ class EHubModel:
     Represents a black-box Energy Hub.
     """
 
-    def __init__(self, *, excel=None, request=None):
+    def __init__(self, constants: dict, *, excel=None, request=None):
         """Create a new Energy Hub using some input data.
 
         Args:
+            constants: A dictionary of the constants to use
             excel: The Excel 2003 file for input data
             request: The request format dictionary
         """
+        self._constants = constants
         self._model = ConcreteModel()
         self._data = None
 
@@ -657,12 +659,15 @@ class EHubModel:
 
         # Declaring Global Parameters
 
-        model.BIG_M = Param(within=NonNegativeReals, initialize=BIG_M)
+        model.BIG_M = Param(within=NonNegativeReals,
+                            initialize=self._constants['BIG_M'])
 
         model.INTEREST_RATE = Param(within=NonNegativeReals,
                                     initialize=data.interest_rate)
 
-        model.MAX_SOLAR_AREA = Param(initialize=MAX_SOLAR_AREA)
+        model.MAX_SOLAR_AREA = Param(
+            initialize=self._constants['MAX_SOLAR_AREA'],
+        )
 
         # loads
         model.LOADS = Param(model.time, model.demands,

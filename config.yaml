@@ -4,6 +4,10 @@ input_file: "excel_files/General_input_new_simple.xlsx"
 # The file to output the results in
 output_file: "output.txt"
 
+parameters:
+    BIG_M: 5000
+    MAX_SOLAR_AREA: 500
+
 # The solver to be used
 solver:
     # the name of the solver
