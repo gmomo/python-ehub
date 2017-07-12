@@ -14,7 +14,7 @@ Running a Model
 To run an energy hub model, use the `General_input.xlsx` file to enter your data.
 The data **must** be in the same format.
 
-<<<<<<< HEAD
+
 1.	In ‘General’ tab the following information has to be filled:
 •	**fuel data (Price and CO2)** for all used types of fuel
 •	**Interest rate**
@@ -38,55 +38,6 @@ The data **must** be in the same format.
 •	**Node 2** - to which node a connection is available
 •	**Length (m)** - what is the length of this connection (used for calculating investment cost and/or losses)
 ---------------
-=======
-Check the `config.yaml` file to see if the input file and output file is where
-you want to load and output the results of the model respectively.
-
-While inside the `config.yaml` file, be sure to set the settings for using a
-specific solver that is installed on your system.
-The default one is `glpk` with some options, but you can set it to any other
-solver that is supported by Pyomo.
-
-Once you have configured the `config.yaml` file, run:
-```
-python cli.py
-```
-to solve the model.
-The results should be in the file you specified in `config.yaml`.
-
-Development
------------
-
-### Installation
-
-To install PyHub, make a new directory and then `cd` into it.
-```
-mkdir pyhub
-cd pyhub
-```
-
-Download the repo:
-```
-git clone https://github.com/hues-platform/python-ehub.git
-```
-
-Install the libraries needed for PyHub to run:
-```
-pip install -r requirements.txt
-```
-
-Also install glpk or another solver.
-Edit the `config.yaml` file to use a selected solver.
-
-Run the `cli.py` script to see if everything works.
-```
-python cli.py
-```
-
-### Docs
-
-Can be found [here](docs/explanation.md).
->>>>>>> origin/master
 
 In the python code set the correct path to excel file and run the needed code (cells).
 
