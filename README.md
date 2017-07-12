@@ -26,6 +26,7 @@ The data **must** be in the same format.
 •	**Hub** - to which hub the demand corresponds
 •	**Values** - even if there is no demand still 0 has to be filled
 3.	In `Technology` tab the following information has to be filled:
+
 •	Each column corresponds to new technology. Fill in the information accordingly to the row name. If the information is unknown put in 0. Row *hubs* specifies for each technology in which hub(s) it is present.
 •	*Output* matrix has to have as many rows as there are demands. Allowed values are: 1, 0, -negative_real. 1 means that the technology is producing this demand, 0 means it is not pro-ducing this demand and negative number means it is using this demand. E.g. if a specific tech-nology has an output column equal to 1, -1, -3 it means that for 1 kWh of demand 1 that it produces, it consumes 1 kWh of demand 2 and 3 kWh of demand 3.
 •	*Technology Carbon Factors* - for each technology it has to be inputed how much CO2 is produced for producing 1 kWh of energy. This value is connected to the fuel type. Based on the *technology carbon factors* value, it will be matched with *Fuel data* in `General` tab to calculate the fuel cost for the specific technology.
