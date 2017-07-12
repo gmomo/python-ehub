@@ -15,7 +15,7 @@ To run an energy hub model, use the `General_input.xlsx` file to enter your data
 The data **must** be in the same format.
 
 
-1.	In ‘General’ tab the following information has to be filled:
+1.	In 'General' tab the following information has to be filled:
 •	**fuel data (Price and CO2)** for all used types of fuel
 •	**Interest rate**
 •	 **Export price** for each demand (0 if it is not available)
