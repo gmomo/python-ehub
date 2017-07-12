@@ -16,10 +16,15 @@ The data **must** be in the same format.
 
 
 1.	In `General` tab the following information has to be filled:
-•	**fuel data (Price and CO2)** for all used types of fuel
-•	**Interest rate**
-•	 **Export price** for each demand (0 if it is not available)
-•	**Number of hubs** - In this number nodes that have no demand (e.g. for network layout) have to be inputed
+
+            •	**fuel data (Price and CO2)** for all used types of fuel
+
+            •	**Interest rate**
+
+            •	 **Export price** for each demand (0 if it is not available)
+
+            •	**Number of hubs** - In this number nodes that have no demand (e.g. for network layout) have to be inputed
+
 2.	In `Demand data` tab the following information has to be filled:
 •	**Number of demands** that has to be met
 •	**Demand name** - the names will be used for result output
