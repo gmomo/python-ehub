@@ -39,9 +39,13 @@ The data **must** be in the same format.
 5.	In `Network` tab the following information has to be filled:
 
       •	**Demand** - for which demands a network is available in order in which demands have been defined in `Demand data` tab. E.g. if demands are electricity, heat and cooling, and a network is available for electricity and cooling, one would put values in the cell `1,3`.
+      
       •	**Link ID** - just a number in the increasing manner.
+      
       •	**Node 1** - from which node a connection is available
+      
       •	**Node 2** - to which node a connection is available
+      
       •	**Length (m)** - what is the length of this connection (used for calculating investment cost and/or losses)
 ---------------
 
