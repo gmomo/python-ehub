@@ -5,6 +5,7 @@ Requirements
 ------------
 
 - Python 2.7+ (pandas, numpy, matplotlib libraries)
+- Jupyter notebook preferred
 - Pyomo
 - `glpk` or another solver supported by Pyomo
 
