@@ -27,10 +27,14 @@ The data **must** be in the same format.
 •	**Values** - even if there is no demand still 0 has to be filled
 3.	In `Technology` tab the following information has to be filled:
 
-•	Each column corresponds to new technology. Fill in the information accordingly to the row name. If the information is unknown put in 0. Row *hubs* specifies for each technology in which hub(s) it is present.
-•	*Output* matrix has to have as many rows as there are demands. Allowed values are: 1, 0, -negative_real. 1 means that the technology is producing this demand, 0 means it is not pro-ducing this demand and negative number means it is using this demand. E.g. if a specific tech-nology has an output column equal to 1, -1, -3 it means that for 1 kWh of demand 1 that it produces, it consumes 1 kWh of demand 2 and 3 kWh of demand 3.
-•	*Technology Carbon Factors* - for each technology it has to be inputed how much CO2 is produced for producing 1 kWh of energy. This value is connected to the fuel type. Based on the *technology carbon factors* value, it will be matched with *Fuel data* in `General` tab to calculate the fuel cost for the specific technology.
-•	*Storages* - for each demand storage data has to be filled. *Hubs* row specifies in which hubs the storage is available for each demand.
+•	Each column corresponds to new technology. Fill in the information accordingly to the row name. If the information is unknown put in 0. Row **hubs** specifies for each technology in which hub(s) it is present.
+
+•	**Output** matrix has to have as many rows as there are demands. Allowed values are: 1, 0, -negative_real. 1 means that the technology is producing this demand, 0 means it is not pro-ducing this demand and negative number means it is using this demand. E.g. if a specific tech-nology has an output column equal to 1, -1, -3 it means that for 1 kWh of demand 1 that it produces, it consumes 1 kWh of demand 2 and 3 kWh of demand 3.
+
+•	**Technology Carbon Factors** - for each technology it has to be inputed how much CO2 is produced for producing 1 kWh of energy. This value is connected to the fuel type. Based on the *technology carbon factors* value, it will be matched with *Fuel data* in `General` tab to calculate the fuel cost for the specific technology.
+
+•	**Storages** - for each demand storage data has to be filled. *Hubs* row specifies in which hubs the storage is available for each demand.
+
 4.	In `Solar data` tab the solar irradiation has to be filled which will be used for all roof technology in all buildings
 5.	In `Network` tab the following information has to be filled:
 •	*Demand* - for which demands a network is available in order in which demands have been defined in `Demand data` tab. E.g. if demands are electricity, heat and cooling, and a network is available for electricity and cooling, one would put values in the cell `1,3`.
