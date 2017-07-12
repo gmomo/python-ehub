@@ -3,7 +3,7 @@ This module contains all the tests.
 
 This file must be called via
 
-    python3.6 -m tests.tests
+    python3.6 -m tests.system_tests
 
 from the root directory.
 """

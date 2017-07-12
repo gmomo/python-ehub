@@ -65,8 +65,13 @@ def get_files_to_check(directory: str) -> Iterable[str]:
                 yield inner_file
 
 
-def main() -> None:
-    """The main function that runs the script."""
+def run_linting() -> int:
+    """
+    Run pylint on all the files.
+
+    Returns:
+        The return code
+    """
     return_code = 0
     print("Running linting process...")
     for file in get_files_to_check('.'):
@@ -76,10 +81,44 @@ def main() -> None:
             print(exc)
             return_code = -1
 
+    return return_code
+
+
+def run_system_test():
+    """
+    Run all the system tests.
+
+    Returns:
+        The return code
+    """
     print("Running tests...")
-    result = subprocess.run(['python3.6', '-m', 'tests.tests'])
+    result = subprocess.run(['python3.6', '-m', 'tests.system_tests'])
     if result.returncode != 0:
         exit(result.returncode)
+
+
+def run_doctests():
+    """
+    Run `doctest` on all the files.
+
+    Returns:
+        The return code of running all the tests.
+    """
+    print('Running doctests...')
+    for file in get_files_to_check('.'):
+        result = subprocess.run(['python3.6', '-m', 'doctest', file])
+        if result.returncode != 0:
+            exit(result.returncode)
+
+    print('Doctests PASSED')
+
+
+def main() -> None:
+    """The main function that runs the script."""
+    return_code = run_linting()
+
+    run_system_test()
+    run_doctests()
 
     exit(return_code)
 
