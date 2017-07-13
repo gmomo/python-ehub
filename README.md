@@ -17,7 +17,7 @@ For starting Jupyter notebook please see documentation at http://jupyter-noteboo
 Running a Model
 ---------------
 
-To run an energy hub model, use the `General_input.xlsx` file to enter your data.
+To run an energy hub model, use one of the excel files in `case` folder on GitHub or adapt it in order to enter your data.
 The data **must** be in the same format.
 
 
