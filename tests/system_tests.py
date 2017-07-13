@@ -19,6 +19,41 @@ class Tests:
     """
 
     @staticmethod
+    @test('storage_looping.xlsx')
+    def ensure_storage_levels_loop(results):
+        """Ensure that the storage level can transfer levels from the end to
+        beginning."""
+        variables = results['solution']['variables']
+
+        assert variables['Grid'] == 0
+        assert variables['income_from_exports'] == 0
+
+        assert variables['energy_imported'][3]['PV'] == 50
+        assert variables['energy_to_storage'][3]['Battery'] == 50
+        assert variables['storage_level'][4]['Battery'] == 50
+
+        assert variables['storage_level'][0]['Battery'] == 50
+        assert variables['energy_from_storage'][0]['Battery'] == 50
+
+        assert variables['total_cost'] == 17832.5
+
+    @staticmethod
+    @test('storage_export_start.xlsx')
+    def no_exporting_from_storage_on_first_time_step_with_no_demands(results):
+        """Ensures that no energy is taken from a storage and immediately
+        exported on the first time step when there is no energy in the
+        storage."""
+        variables = results['solution']['variables']
+        parameters = results['solution']['parameters']
+
+        for t in range(0, 3):
+            assert parameters['LOADS'][t]['Elec'] == 0
+            assert variables['energy_from_storage'][t]['Battery'] == 0
+
+        assert variables['income_from_exports'] == 0
+        assert variables['total_cost'] == 0
+
+    @staticmethod
     @test('chp.xlsx')
     def simple_chp(results):
         """Ensure a simple CHP converter works."""
@@ -55,6 +90,7 @@ class Tests:
             assert energy_imported[t]['PV'] == 50
             assert energy_imported[t]['Grid'] == 0
 
+        assert variables['income_from_exports'] == 0
         assert variables['total_cost'] == 17832.5
 
     @staticmethod
@@ -74,11 +110,12 @@ class Tests:
         storage_level = variables['storage_level']
         battery = 'Battery'
 
-        storage_levels = [0, 50, 100, 50, 0]
+        storage_levels = [0, 0, 50, 100, 50, 0]
         for t, level in enumerate(storage_levels):
             assert storage_level[t][battery] == level
 
-        assert variables['total_cost'] == 17818.5
+        assert variables['income_from_exports'] == 0
+        assert variables['total_cost'] == 17832.5
 
     def run(self):
         """Run all the tests."""
