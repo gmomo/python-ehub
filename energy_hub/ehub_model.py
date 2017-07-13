@@ -78,8 +78,6 @@ class EHubModel:
         model.streams = Set(initialize=data.stream_names)
 
         model.time = RangeSet(stop=num_time_steps)
-        model.sub_time = RangeSet(start=1, stop=num_time_steps,
-                                  within=model.time)
 
         model.technologies = Set(initialize=data.converter_names)
         model.techs_without_grid = Set(
@@ -297,7 +295,7 @@ class EHubModel:
         return charge_rate <= max_rate
 
     @staticmethod
-    @constraint('sub_time', 'storages')
+    @constraint('time', 'storages')
     def storage_balance(model, t, storage):
         """
         Calculate the current storage level from the previous level.
@@ -307,23 +305,24 @@ class EHubModel:
             t: A time step
             storage: A storage
         """
+        # See the storage_level declaration for more details
+        next_storage_level = model.storage_level[t + 1, storage]
         current_storage_level = model.storage_level[t, storage]
-        previous_storage_level = model.storage_level[t - 1, storage]
 
         storage_standing_loss = model.STORAGE_STANDING_LOSSES[storage]
 
         discharge_rate = model.DISCHARGING_EFFICIENCY[storage]
         charge_rate = model.CHARGING_EFFICIENCY[storage]
 
-        q_in = model.energy_to_storage[t, storage]
-        q_out = model.energy_from_storage[t, storage]
+        charge_in = model.energy_to_storage[t, storage]
+        charge_out = model.energy_from_storage[t, storage]
 
-        calculated_level = (
-            ((1 - storage_standing_loss) * previous_storage_level)
-            + (charge_rate * q_in)
-            - ((1 / discharge_rate) * q_out)
+        calculated_next_storage_level = (
+            ((1 - storage_standing_loss) * current_storage_level)
+            + (charge_rate * charge_in)
+            - ((1 / discharge_rate) * charge_out)
         )
-        return current_storage_level == calculated_level
+        return next_storage_level == calculated_next_storage_level
 
     @staticmethod
     @constraint('technologies')
@@ -546,13 +545,14 @@ class EHubModel:
         self._add_constraint_lists()
 
     @constraint_list()
-    def _add_unknown_storage_constraint(self):
+    def storage_looping(self):
         """Ensure that the storage level at the beginning is equal to it's end
         level."""
         model = self._model
 
         for storage in self._data.storages:
-            last_entry = model.time.last()
+            # See the storage_level declaration
+            last_entry = model.time.last() + 1
             first_entry = model.time.first()
 
             start_level = model.storage_level[first_entry, storage.name]
@@ -601,7 +601,22 @@ class EHubModel:
         model.energy_from_storage = Var(model.time, model.storages,
                                         domain=NonNegativeReals)
 
-        model.storage_level = Var(model.time, model.storages,
+        # Time steps are not points in time, but time intervals. Time step 0 is
+        # from time 0 up to, but not including, time 1. Time step 1 is from
+        # time 1 up to time 2, and so on.
+        # But for storages, we measure the level at each point in time. So for
+        # time step 0, we are measuring it at that point in time. The level
+        # for time step 1 is at time point 1, and so on.
+        # So we need an additional time "step" to measure the level after
+        # everything has happened in the last time step.
+        #
+        #      time step 0   time step 1   time step 2
+        #           |             |             |
+        #    |-------------|-------------|-------------|---...
+        #  time 0        time 1        time 2        time 3
+        #
+        time_plus_one = RangeSet(stop=len(model.time) + 1)
+        model.storage_level = Var(time_plus_one, model.storages,
                                   domain=NonNegativeReals)
 
         model.storage_capacity = ConstantOrVar(
