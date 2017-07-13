@@ -6,7 +6,7 @@ Requirements
 
 - Python 2.7+ (pandas (tested on version 0.18), numpy (tested on version 1.11), matplotlib libraries)
 - Jupyter notebook preferred
-- Pyomo library (tested on versio 5.1.1)
+- Pyomo library (tested on version 5.1.1)
 - `glpk` or another solver supported by Pyomo
 
 The easiest way for a windows machine is to install anaconda package from https://www.continuum.io/downloads . In order to install missing libraries run `Anaconda Command Prompt` and then type `conda install library_name`. If some library does not support conda, try by typing in `Anaconda Command Prompt` `pip install library_name`.
