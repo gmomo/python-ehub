@@ -17,7 +17,7 @@ For starting Jupyter notebook please see documentation at http://jupyter-noteboo
 Running a Model
 ---------------
 
-To run an energy hub model, use the `General_input.xlsx` file to enter your data.
+To run an energy hub model, use one of the excel files in `case` folder on GitHub or adapt it in order to enter your data.
 The data **must** be in the same format.
 
 
@@ -68,10 +68,10 @@ The data **must** be in the same format.
 In the python code set the correct path to excel file and run the needed code (cells).
 
 ---------------
-In order to have bidirectional decentralized network change the domain of variable `DH_Q` to `Reals`. In order to have unidirectional network change the domain of variable `DH_Q` to `NonNegativeReals`. 
+In order to have bidirectional decentralized network change the domain of variable `DH_Q` to `Reals` in the Python code. In order to have unidirectional network change the domain of variable `DH_Q` to `NonNegativeReals` in the Python code. 
 
 ---------------
-In order to have network layout optimization change the value of variable `fixednetwork` to 0.
-In order to have fixed network layout change the value of variable `fixednetwork` to 1.
+In order to have network layout optimization change the value of variable `fixednetwork` to 0 in the Python code.
+In order to have fixed network layout change the value of variable `fixednetwork` to 1 in the Python code.
 
 
