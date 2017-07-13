@@ -9,7 +9,7 @@ Requirements
 - Pyomo library
 - `glpk` or another solver supported by Pyomo
 
-The easiest way for a windows machine is to install anaconda package from https://www.continuum.io/downloads . In order to instal missing libraries run `Anaconda Command Prompt` and then type `conda install library_name`. If some library does not support conda, try by typing in `Anaconda Command Prompt` `pip install library_name`.
+The easiest way for a windows machine is to install anaconda package from https://www.continuum.io/downloads . In order to install missing libraries run `Anaconda Command Prompt` and then type `conda install library_name`. If some library does not support conda, try by typing in `Anaconda Command Prompt` `pip install library_name`.
 
 For starting Jupyter notebook please see documentation at http://jupyter-notebook-beginner-guide.readthedocs.io/en/latest/execute.html .
 
