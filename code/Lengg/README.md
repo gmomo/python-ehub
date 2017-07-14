@@ -1,0 +1,1 @@
+For Lengg case study, change the maximum allowed peak of WP (50% of the maximum peak) in the '50% HP rule' cell.
