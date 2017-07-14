@@ -19,6 +19,29 @@ class Tests:
     """
 
     @staticmethod
+    @test('storages_of_same_type.xlsx')
+    def storage_of_same_type_both_used(results):
+        variables = results['solution']['variables']
+
+        assert variables['Grid'] == 0
+        assert variables['income_from_exports'] == 0
+
+        for t in [1, 2]:
+            assert variables['energy_imported'][t]['PV'] == 50
+
+        assert variables['storage_level'][3]['LeftBattery'] == 50
+        assert variables['storage_level'][2]['RightBattery'] == 50
+
+        assert variables['energy_from_storage'][3]['RightBattery'] == 50
+        assert variables['energy_from_storage'][4]['LeftBattery'] == 50
+
+        assert variables['storage_level'][5]['LeftBattery'] == 0
+        assert variables['storage_level'][5]['RightBattery'] == 0
+
+        assert variables['total_carbon'] == 0
+        assert variables['total_cost'] == 17832.5
+
+    @staticmethod
     @test('storage_looping.xlsx')
     def ensure_storage_levels_loop(results):
         """Ensure that the storage level can transfer levels from the end to
