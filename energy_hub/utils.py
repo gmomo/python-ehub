@@ -27,7 +27,7 @@ def constraint(*args, enabled=True):
     Mark a function as a constraint of the model.
 
     The function that adds these constraints to the model is
-    `_add_constraints_new`.
+    `_add_indexed_constraints`.
 
     Args:
         *args: The arguments that are passed to Pyomo's Constraint constructor
