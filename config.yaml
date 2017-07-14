@@ -1,5 +1,5 @@
 # The file to use as input for the data
-input_file: "excel_files/General_input_new_simple.xlsx"
+input_file: "excel_files/General_input_new_OES.xlsx"
 
 # The file to output the results in
 output_file: "output.txt"
@@ -7,8 +7,8 @@ output_file: "output.txt"
 # The solver to be used
 solver:
     # the name of the solver
-    name: "glpk"
+    name: "cplex"
 
     # The options to be passed to the solver
     options:
-        mipgap: 0.05
+    #    mipgap: 0.05
