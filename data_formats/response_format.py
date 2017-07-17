@@ -78,6 +78,23 @@ class ResponseValidationError(Exception):
     """The instance failed to validate against the SCHEMA."""
 
 
+def _is_valid_json_type(json: Any) -> bool:
+    if json is None:
+        return True
+
+    return any(isinstance(json, t) for t in [str, float, int, dict, list])
+
+
+def _is_valid(mapping: Union[dict, list, str, float, int]) -> bool:
+    if isinstance(mapping, list):
+        return all(_is_valid(x) for x in mapping)
+    elif isinstance(mapping, dict):
+        return all(_is_valid(key) and _is_valid(value)
+                   for key, value in mapping.items())
+
+    return _is_valid_json_type(mapping)
+
+
 def validate(instance: dict) -> None:
     """
     Validate the instance against the schema.
@@ -88,6 +105,9 @@ def validate(instance: dict) -> None:
     Raises:
         ValidationError: the instance does not match the schema
     """
+    if not _is_valid(instance):
+        raise ResponseValidationError
+
     try:
         jsonschema.validate(instance, SCHEMA)
     except jsonschema.ValidationError as exc:
