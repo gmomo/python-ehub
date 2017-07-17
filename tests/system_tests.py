@@ -21,6 +21,8 @@ class Tests:
     @staticmethod
     @test('storages_of_same_type.xlsx')
     def storage_of_same_type_both_used(results):
+        """Ensure that multiple storages that hold the same stream are all
+        used."""
         variables = results['solution']['variables']
 
         assert variables['Grid'] == 0
