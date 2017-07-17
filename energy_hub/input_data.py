@@ -3,10 +3,9 @@ Provides functionality for handling the request format for using in the
 EHubModel.
 """
 from collections import defaultdict
-from typing import List, Optional, Dict, TypeVar, Tuple, Union, Iterable
+from typing import List, Optional, Dict, TypeVar, Tuple, Iterable
 
 import pandas as pd
-from pyomo.core.base import Var, Model
 
 from data_formats.request_format import (
     Capacity, Converter, Stream, Storage, TimeSeries,
@@ -20,14 +19,13 @@ class InputData:
     """Provides convenient access to needed data to implement an energy hub
     model."""
 
-    def __init__(self, request: dict, model: Model) -> None:
+    def __init__(self, request: dict) -> None:
         """Create a new instance.
 
         Args:
             request: A dictionary in request format
         """
         self._request = request
-        self._model = model
 
     @cached_property
     def capacities(self) -> List[Capacity]:
@@ -72,7 +70,7 @@ class InputData:
         def _make(converter):
             capacity = self._get_capacity(converter['capacity'])
 
-            return Converter(converter, capacity, self._model)
+            return Converter(converter, capacity)
 
         return [_make(converter) for converter in self._request['converters']]
 
@@ -198,23 +196,16 @@ class InputData:
         return part_load
 
     @property
-    def converters_capacity(self) -> Dict[Tuple[str, str], Union[float, Var]]:
+    def converters_capacity(self) -> Dict[Tuple[str, str], float]:
         """Return the capacities of the converters."""
         return {tech.name: tech.capacity
                 for tech in self.converters}
 
     @property
-    def max_capacity_names(self) -> List[str]:
+    def techs(self) -> List[str]:
         """Return the names of non-solar converters."""
         return [tech.name for tech in self.converters
                 if not (tech.is_grid or tech.is_solar)]
-
-    @cached_property
-    def max_capacity(self) -> Dict[int, float]:
-        """The max capacity of non-solar converter."""
-        return {tech.name: tech.max_capacity
-                for tech in self.converters
-                if not (tech.is_grid or tech.is_solar)}
 
     @property
     def disp_techs(self) -> List[str]:
@@ -227,8 +218,8 @@ class InputData:
         return [tech.name for tech in self.converters if tech.has_part_load]
 
     @cached_property
-    def linear_cost(self) -> Dict[Tuple[str, str], float]:
-        """Return the linear cost for each tech and each of its outputs."""
+    def linear_cost(self) -> Dict[str, float]:
+        """Return the linear cost for each tech."""
         return {converter.name: converter.capital_cost
                 for converter in self.converters}
 
@@ -259,7 +250,7 @@ class InputData:
         )
 
     @cached_property
-    def tech_npv(self) -> Dict[int, float]:
+    def tech_npv(self) -> Dict[str, float]:
         """The net present value of each converter."""
         return {tech.name: round(self._calculate_npv(tech.lifetime), 4)
                 for tech in self.converters
@@ -355,7 +346,7 @@ class InputData:
                 for storage in self.storages}
 
     @cached_property
-    def storage_npv(self) -> Dict[int, float]:
+    def storage_npv(self) -> Dict[str, float]:
         """The net present value of each storage."""
         return {storage.name: self._calculate_npv(storage.lifetime)
                 for storage in self.storages}

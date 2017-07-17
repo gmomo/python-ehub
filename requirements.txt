@@ -1,6 +1,5 @@
 # The required Python dependencies to be installed via
 #     pip install -r requirements.txt
-Pyomo==5.2
 pulp
 contexttimer
 pandas==0.20.1

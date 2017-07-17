@@ -6,11 +6,11 @@ Exports:
     >>> from pylp import (RealVariable, BinaryVariable, IntegerVariable,
     ... Variable)
 
-    The function to solve a linear programming model
-    >>> from pylp import solve
+    The function to solve a linear programming model and its status
+    >>> from pylp import solve, Status
 """
 from pylp.variable import (
     Variable, RealVariable, BinaryVariable,
     IntegerVariable,
 )
-from pylp.problem import solve
+from pylp.problem import solve, Status

@@ -3,27 +3,22 @@ Provides functionality for handling a request format's converter.
 """
 from typing import List, Optional, Union, Dict
 
-from pyomo.core.base import Model, Var
-
 
 class Converter:
     """A wrapper for a request format converter."""
 
-    def __init__(self, converter_request: dict, capacity_converter: dict,
-                 model: Model) -> None:
+    def __init__(self, converter_request: dict, capacity_converter: dict) -> None:
         """Create a new wrapper for a converter.
 
         Args:
             converter_request: The converter in the request format
             capacity_converter: The capacity associated with the converter
-            model: The parent Pyomo model
         """
         self._converter = converter_request
         self._capacity = capacity_converter
-        self._model = model
 
     @property
-    def capacity(self) -> Union[float, Var]:
+    def capacity(self) -> Union[float, str]:
         """Return the capacity of the converter."""
         return self._converter['capacity']
 

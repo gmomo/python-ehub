@@ -168,15 +168,11 @@ def pretty_print(results: dict) -> None:
     print("Version: {}".format(version))
 
     print("Solver")
-    print("time: {}".format(solver['time']))
-    print("termination condition: {}".format(solver['termination_condition']))
+    print(f"\ttermination condition: {solver['termination_condition']}")
+    print(f"\ttime: {solver['time']}")
 
     print("Solution")
-    print_section('Objective', results['solution']['objective'])
-    print_section('Sets', results['solution']['sets'])
-    print_section('Parameters', results['solution']['parameters'])
-    print_section('Variable Parameters', results['solution']['param_or_var'])
-    print_section('Variables', results['solution']['variables'])
+    print_section('Stuff', results['solution'])
 
 
 def print_section(section_name: str, solution_section: dict) -> None:
