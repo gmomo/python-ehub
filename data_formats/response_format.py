@@ -12,8 +12,6 @@ Examples:
         ...
     data_formats.response_format.ResponseValidationError
 """
-from collections import defaultdict
-from contextlib import suppress
 from typing import Dict, Any, Union
 
 import jsonschema
@@ -101,8 +99,8 @@ def _get_value(value: Any) -> Any:
         return _get_value(value.values)
     elif isinstance(value, dict):
         return {key: _get_value(value) for key, value in value.items()}
-    else:
-        return value
+
+    return value
 
 
 def _get_stuff(model: Dict) -> Dict[str, Any]:
