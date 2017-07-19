@@ -99,3 +99,43 @@ To kill it with fire:
 ```bash
 docker-compose kill
 ```
+
+## How to transfer image onto another computer
+
+There may be a case where you want to run the server on another computer
+without having the code on there as well.
+
+To build the image to be transferred to another computer, run:
+```bash
+sudo ./docker/build.sh
+```
+
+This should create a file called `server_image` in the root directory of this
+project.
+
+Next, copy the file onto some medium to transfer to the other computer (e-mail,
+USB, etc.).
+Also, copy with it the `docker-compose.yaml` file.
+This file is used to start up the server easily.
+
+Once the files are onto the other computer, look at the `docker/load.sh` file.
+This is a script that loads the image into the local computer's Docker 
+repository (sort of like how `git` works).
+You can either run the script on the other computer or just run the command
+yourself.
+
+Once the image has been loaded into the local Docker repo, all you have to do
+is run:
+```bash
+docker-compose up -d
+```
+
+This starts the container for the server from the image and has it run in the
+background.
+To check that it is actually running, do:
+```bash
+docker ps
+```
+
+Now XMLRPC clients can send their request to the server.
+You can look at `client.py` for an example of that.
