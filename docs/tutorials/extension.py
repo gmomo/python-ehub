@@ -7,9 +7,9 @@ To run this file, from the root directory of this project, do
 """
 import os
 
-from cli import pretty_print
+from run import pretty_print
 from energy_hub import EHubModel
-from energy_hub.ehub_model import constraint
+from energy_hub.utils import constraint, constraint_list
 
 
 class MyModel(EHubModel):
@@ -65,6 +65,25 @@ class MyModel(EHubModel):
         # stream has to be 0. This could mean that we don't want to export any
         # energy at all and just use it to fill storages instead.
         return model.energy_exported[t, output_stream] == 0
+
+    @constraint_list()
+    def constraint_list_example(self):
+        """
+        This is an example of using the constraint_list decorator.
+
+        This makes a method "return" a list of constraints for some data.
+
+        This is mostly used for some data that would make it too complicated to
+        have it in a lot of regular @constraint methods. It could also be used
+        to check if a constraint is valid before adding it to the model.
+
+        Yields:
+            Constraints
+        """
+        for t in range(len(self._model.time)):
+            if t > 10:
+                # Lookup Python generators to learn more on that this does
+                yield self._model.energy_exported[t, 'Elec'] > 10
 
 # This is a cross-platform way of getting the path to the Excel file
 current_directory = os.path.dirname(os.path.realpath(__file__))
