@@ -3,7 +3,7 @@ Provides functionality for handling the request format for using in the
 EHubModel.
 """
 from collections import defaultdict
-from typing import List, Optional, Dict, TypeVar, Tuple, Iterable
+from typing import List, Optional, Dict, TypeVar, Iterable
 
 import pandas as pd
 
@@ -126,12 +126,10 @@ class InputData:
         return len(list(self.demands))
 
     @property
-    def loads(self) -> Dict[Tuple[int, str], float]:
+    def loads(self) -> Dict[str, Dict[int, float]]:
         """The data for all demands as a dictionary that is indexed by (time,
         demand time series ID)."""
-        return {(row, demand.stream): value
-                for demand in self.demands
-                for row, value in demand.pyomo_data.items()}
+        return {demand.stream: demand.pyomo_data for demand in self.demands}
 
     @cached_property
     def solar_data(self) -> Dict[int, float]:
@@ -153,10 +151,10 @@ class InputData:
         return [tech.name for tech in self.converters if tech.is_roof_tech]
 
     @property
-    def c_matrix(self) -> Dict[Tuple[str, str], float]:
+    def c_matrix(self) -> Dict[str, Dict[str, float]]:
         """Return a dictionary-format for the C matrix.
 
-        The keys are of the form (converter ID, stream ID).
+        The format is like {converter name: {stream name: ...}, ...}
         """
         c_matrix = pd.DataFrame(0, index=self.converter_names,
                                 columns=self.stream_names, dtype=float)
@@ -170,9 +168,7 @@ class InputData:
                 output_ratio = tech.output_ratios[output]
                 c_matrix[output][tech.name] = efficiency * output_ratio
 
-        return {(row, col): value
-                for col, column in c_matrix.to_dict().items()
-                for row, value in column.items()}
+        return c_matrix.T.to_dict()
 
     @cached_property
     def solar_techs(self) -> List[str]:
@@ -181,22 +177,22 @@ class InputData:
                 if tech.is_solar]
 
     @cached_property
-    def part_load(self) -> Dict[Tuple[str, str], float]:
+    def part_load(self) -> Dict[str, Dict[str, float]]:
         """Return the part load for each tech and each of its outputs."""
         part_load_techs = [tech for tech in self.converters
                            if not (tech.is_grid or tech.is_solar)]
-        part_load = defaultdict(float)  # type: Dict[Tuple[str, str], float]
+        part_load = defaultdict(defaultdict)  # type: Dict[str, Dict[str, float]]
         for tech in part_load_techs:
             for output_stream in self.output_stream_names:
                 if output_stream in tech.outputs:
                     min_load = tech.min_load
                     if min_load is not None:
-                        part_load[tech.name, output_stream] = min_load
+                        part_load[tech.name][output_stream] = min_load
 
         return part_load
 
     @property
-    def converters_capacity(self) -> Dict[Tuple[str, str], float]:
+    def converters_capacity(self) -> Dict[str, float]:
         """Return the capacities of the converters."""
         return {tech.name: tech.capacity
                 for tech in self.converters}

@@ -92,68 +92,21 @@ def validate(instance: dict) -> None:
         raise ResponseValidationError from exc
 
 
-def _to_matrix(matrix: Union[Dict, Any]) -> Union[Dict, Any]:
-    """
-    Convert a dictionary into a format for pandas's DataFrames.
-
-    Examples:
-        >>> _to_matrix({1: 'a', 2: 'b'})
-        {1: 'a', 2: 'b'}
-        >>> _to_matrix({(1, 1): 'a', (1, 2): 'b', (2, 2): 'c'})
-        {1: {1: 'a', 2: 'b'}, 2: {2: 'c'}}
-
-    Args:
-        matrix: The dictionary to convert
-
-    Returns:
-        The converted dictionary
-    """
-    if not isinstance(matrix, dict):
-        # Some values might be variable so get their actual value
-        with suppress(AttributeError):
-            matrix = matrix.evaluate()
-
-        return matrix
-
-    temp = defaultdict(dict)
-    for key, value in matrix.items():
-        # Some values might be variable so get their actual value
-        with suppress(AttributeError):
-            value = value.evaluate()
-
-        if isinstance(key, tuple):
-            key, *rest = key
-            rest = tuple(rest)
-
-            # Don't want to recurse on an empty tuple
-            if len(rest) == 1:
-                rest = rest[0]
-
-            temp[key][rest] = value
-        else:
-            temp[key] = value
-
-    for key, value in temp.items():
-        temp[key] = _to_matrix(value)
-
-    return dict(temp)
+def _get_value(value: Any) -> Any:
+    if isinstance(value, Variable):
+        return value.evaluate()
+    elif isinstance(value, range):
+        return list(value)
+    elif isinstance(value, ConstantOrVar):
+        return _get_value(value.values)
+    elif isinstance(value, dict):
+        return {key: _get_value(value) for key, value in value.items()}
+    else:
+        return value
 
 
 def _get_stuff(model: Dict) -> Dict[str, Any]:
-    result = {}
-    for name, value in model.items():
-        if isinstance(value, dict):
-            result[name] = _to_matrix(value)
-        elif isinstance(value, range):
-            result[name] = list(value)
-        elif isinstance(value, Variable):
-            result[name] = value.evaluate()
-        elif isinstance(value, ConstantOrVar):
-            result[name] = _to_matrix(value.values)
-        else:
-            result[name] = value
-
-    return result
+    return {name: _get_value(value) for name, value in model.items()}
 
 
 def create_response(status: Status, model: Dict) -> Dict[str, Any]:

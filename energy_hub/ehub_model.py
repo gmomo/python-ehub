@@ -118,7 +118,7 @@ class EHubModel:
         """A constraint for calculating the total carbon produced."""
         total_carbon = 0
         for tech in self.technologies:
-            total_energy_imported = sum(self.energy_imported[t, tech]
+            total_energy_imported = sum(self.energy_imported[t][tech]
                                         for t in self.time)
             carbon_factor = self.CARBON_FACTORS[tech]
 
@@ -149,7 +149,7 @@ class EHubModel:
         """A constraint for calculating the income from exported streams."""
         income = 0
         for energy in self.output_streams:
-            total_energy_exported = sum(self.energy_exported[t, energy]
+            total_energy_exported = sum(self.energy_exported[t][energy]
                                         for t in self.time)
 
             income += self.FEED_IN_TARIFFS[energy] * total_energy_exported
@@ -163,8 +163,8 @@ class EHubModel:
         for t in self.time:
             for tech in self.technologies:
                 for energy in self.output_streams:
-                    cost += (self.energy_imported[t, tech]
-                             * self.CONVERSION_EFFICIENCY[tech, energy]
+                    cost += (self.energy_imported[t][tech]
+                             * self.CONVERSION_EFFICIENCY[tech][energy]
                              * self.OMV_COSTS[tech])
 
         return self.maintenance_cost == cost
@@ -174,7 +174,7 @@ class EHubModel:
         """A constraint for calculating the operating cost."""
         cost = 0
         for tech in self.technologies:
-            total_energy_imported = sum(self.energy_imported[t, tech]
+            total_energy_imported = sum(self.energy_imported[t][tech]
                                         for t in self.time)
 
             cost += self.OPERATING_PRICES[tech] * total_energy_imported
@@ -190,7 +190,7 @@ class EHubModel:
             t: A time step
             storage: A storage
         """
-        storage_level = self.storage_level[t, storage]
+        storage_level = self.storage_level[t][storage]
         storage_capacity = self.storage_capacity[storage]
 
         return storage_level <= storage_capacity
@@ -206,7 +206,7 @@ class EHubModel:
         """
         storage_capacity = self.storage_capacity[storage]
         min_soc = self.MIN_STATE_OF_CHARGE[storage]
-        storage_level = self.storage_level[t, storage]
+        storage_level = self.storage_level[t][storage]
 
         min_storage_level = storage_capacity * min_soc
 
@@ -223,7 +223,7 @@ class EHubModel:
         """
         max_discharge_rate = self.MAX_DISCHARGE_RATE[storage]
         storage_capacity = self.storage_capacity[storage]
-        discharge_rate = self.energy_from_storage[t, storage]
+        discharge_rate = self.energy_from_storage[t][storage]
 
         max_rate = max_discharge_rate * storage_capacity
 
@@ -240,7 +240,7 @@ class EHubModel:
         """
         max_charge_rate = self.MAX_CHARGE_RATE[storage]
         storage_capacity = self.storage_capacity[storage]
-        charge_rate = self.energy_to_storage[t, storage]
+        charge_rate = self.energy_to_storage[t][storage]
 
         max_rate = max_charge_rate * storage_capacity
 
@@ -256,16 +256,16 @@ class EHubModel:
             storage: A storage
         """
         # See the storage_level declaration for more details
-        next_storage_level = self.storage_level[t + 1, storage]
-        current_storage_level = self.storage_level[t, storage]
+        next_storage_level = self.storage_level[t + 1][storage]
+        current_storage_level = self.storage_level[t][storage]
 
         storage_standing_loss = self.STORAGE_STANDING_LOSSES[storage]
 
         discharge_rate = self.DISCHARGING_EFFICIENCY[storage]
         charge_rate = self.CHARGING_EFFICIENCY[storage]
 
-        charge_in = self.energy_to_storage[t, storage]
-        charge_out = self.energy_from_storage[t, storage]
+        charge_in = self.energy_to_storage[t][storage]
+        charge_out = self.energy_from_storage[t][storage]
 
         calculated_next_storage_level = (
             ((1 - storage_standing_loss) * current_storage_level)
@@ -303,12 +303,12 @@ class EHubModel:
             solar_tech: A solar converter
             out: An output stream
         """
-        conversion_rate = self.CONVERSION_EFFICIENCY[solar_tech, out]
+        conversion_rate = self.CONVERSION_EFFICIENCY[solar_tech][out]
 
         if conversion_rate <= 0:
             return None
 
-        energy_imported = self.energy_imported[t, solar_tech]
+        energy_imported = self.energy_imported[t][solar_tech]
         capacity = self.capacities[solar_tech]
 
         rhs = self.SOLAR_EM[t] * capacity
@@ -325,13 +325,13 @@ class EHubModel:
             disp: A dispatch tech
             out: An output energy stream
         """
-        conversion_rate = self.CONVERSION_EFFICIENCY[disp, out]
+        conversion_rate = self.CONVERSION_EFFICIENCY[disp][out]
 
         if conversion_rate <= 0:
             return None
 
-        energy_imported = self.energy_imported[t, disp]
-        is_on = self.is_on[t, disp]
+        energy_imported = self.energy_imported[t][disp]
+        is_on = self.is_on[t][disp]
 
         lhs = energy_imported * conversion_rate
         rhs = self.BIG_M * is_on
@@ -346,15 +346,15 @@ class EHubModel:
             disp: A dispatch tech
             out: An output energy stream
         """
-        conversion_rate = self.CONVERSION_EFFICIENCY[disp, out]
+        conversion_rate = self.CONVERSION_EFFICIENCY[disp][out]
 
         if conversion_rate <= 0:
             return None
 
-        part_load = self.PART_LOAD[disp, out]
+        part_load = self.PART_LOAD[disp][out]
         capacity = self.capacities[disp]
-        energy_imported = self.energy_imported[t, disp]
-        is_on = self.is_on[t, disp]
+        energy_imported = self.energy_imported[t][disp]
+        is_on = self.is_on[t][disp]
 
         lhs = part_load * capacity
 
@@ -375,21 +375,21 @@ class EHubModel:
             t: A time step
             demand: An output stream
         """
-        load = self.LOADS[t, demand]
-        energy_exported = self.energy_exported[t, demand]
+        load = self.LOADS[demand][t]
+        energy_exported = self.energy_exported[t][demand]
 
         lhs = load + energy_exported
 
         total_q_out = 0
         total_q_in = 0
         for storage in self._get_storages_from_stream(demand):
-            total_q_in += self.energy_to_storage[t, storage.name]
-            total_q_out += self.energy_from_storage[t, storage.name]
+            total_q_in += self.energy_to_storage[t][storage.name]
+            total_q_out += self.energy_from_storage[t][storage.name]
 
         energy_in = 0
         for tech in self.technologies:
-            energy_imported = self.energy_imported[t, tech]
-            conversion_rate = self.CONVERSION_EFFICIENCY[tech, demand]
+            energy_imported = self.energy_imported[t][tech]
+            conversion_rate = self.CONVERSION_EFFICIENCY[tech][demand]
 
             energy_in += energy_imported * conversion_rate
 
@@ -407,12 +407,12 @@ class EHubModel:
             tech: A converter
             output_type: An output stream
         """
-        conversion_rate = self.CONVERSION_EFFICIENCY[tech, output_type]
+        conversion_rate = self.CONVERSION_EFFICIENCY[tech][output_type]
 
         if conversion_rate <= 0 or tech in self.solar_techs:
             return None
 
-        energy_imported = self.energy_imported[t, tech]
+        energy_imported = self.energy_imported[t][tech]
         capacity = self.capacities[tech]
 
         energy_in = energy_imported * conversion_rate
@@ -511,8 +511,8 @@ class EHubModel:
             last_entry = list(self.time)[-1] + 1
             first_entry = list(self.time)[0]
 
-            start_level = self.storage_level[first_entry, storage.name]
-            end_level = self.storage_level[last_entry, storage.name]
+            start_level = self.storage_level[first_entry][storage.name]
+            end_level = self.storage_level[last_entry][storage.name]
 
             yield start_level == end_level
 
@@ -554,27 +554,27 @@ class EHubModel:
     @constraint('time', 'technologies')
     def energy_imported_is_above_zero(self, t, tech):
         """Energy imported should be positive."""
-        return self.energy_imported[t, tech] >= 0
+        return self.energy_imported[t][tech] >= 0
 
     @constraint('time', 'output_streams')
     def energy_exported_is_above_zero(self, t, output_stream):
         """Energy exported should be positive."""
-        return self.energy_exported[t, output_stream] >= 0
+        return self.energy_exported[t][output_stream] >= 0
 
     @constraint('time', 'storages')
     def energy_to_storage_above_zero(self, t, storage):
         """Energy to storage should be positive."""
-        return self.energy_to_storage[t, storage] >= 0
+        return self.energy_to_storage[t][storage] >= 0
 
     @constraint('time', 'storages')
     def energy_from_storage_above_zero(self, t, storage):
         """Energy from the storages should be positive."""
-        return self.energy_from_storage[t, storage] >= 0
+        return self.energy_from_storage[t][storage] >= 0
 
     @constraint('time', 'storages')
     def storage_level_above_zero(self, t, storage):
         """Storages' levels should be above zero."""
-        return self.storage_level[t, storage] >= 0
+        return self.storage_level[t][storage] >= 0
 
     @property
     def constraints(self):
@@ -590,12 +590,14 @@ class EHubModel:
         self._add_capacity_variables()
 
         # Global variables
-        self.energy_imported = {(t, tech): RealVariable()
-                                for t in self.time
-                                for tech in self.technologies}
-        self.energy_exported = {(t, out): RealVariable()
-                                for t in self.time
-                                for out in self.output_streams}
+        self.energy_imported = {
+            t: {tech: RealVariable() for tech in self.technologies}
+            for t in self.time
+        }
+        self.energy_exported = {
+            t: {out: RealVariable() for out in self.output_streams}
+            for t in self.time
+        }
 
         self.capacities = ConstantOrVar(self.technologies,
                                         model=self,
@@ -604,9 +606,10 @@ class EHubModel:
         self.is_installed = {tech: BinaryVariable()
                              for tech in self.technologies}
 
-        self.is_on = {(t, tech): BinaryVariable()
-                      for t in self.time
-                      for tech in self.technologies}
+        self.is_on = {
+            t: {tech: BinaryVariable() for tech in self.technologies}
+            for t in self.time
+        }
 
         self.total_cost = RealVariable()
         self.operating_cost = RealVariable()
@@ -616,12 +619,14 @@ class EHubModel:
 
         self.total_carbon = RealVariable()
 
-        self.energy_to_storage = {(t, storage): RealVariable()
-                                  for t in self.time
-                                  for storage in self.storages}
-        self.energy_from_storage = {(t, storage): RealVariable()
-                                    for t in self.time
-                                    for storage in self.storages}
+        self.energy_to_storage = {
+            t: {storage: RealVariable() for storage in self.storages}
+            for t in self.time
+        }
+        self.energy_from_storage = {
+            t: {storage: RealVariable() for storage in self.storages}
+            for t in self.time
+        }
 
         # Time steps are not points in time, but time intervals. Time step 0 is
         # from time 0 up to, but not including, time 1. Time step 1 is from
@@ -637,9 +642,10 @@ class EHubModel:
         #    |-------------|-------------|-------------|---...
         #  time 0        time 1        time 2        time 3
         #
-        self.storage_level = {(t, storage): RealVariable()
-                              for t in range(len(self.time) + 1)
-                              for storage in self.storages}
+        self.storage_level = {
+            t: {storage: RealVariable() for storage in self.storages}
+            for t in range(len(self.time) + 1)
+        }
 
         self.storage_capacity = ConstantOrVar(
             self.storages, model=self, values=self._data.storage_capacity

@@ -72,7 +72,7 @@ class Tests:
         parameters = results['solution']
 
         for t in range(0, 3):
-            assert parameters['LOADS'][t]['Elec'] == 0
+            assert parameters['LOADS']['Elec'][t] == 0
             assert variables['energy_from_storage'][t]['Battery'] == 0
 
         assert variables['income_from_exports'] == 0
