@@ -4,30 +4,51 @@ This file contains terminology that is used throughout the project.
 
 ## Table of Contents
 
-- [Pyomo](#pyomo)
+- [Linear Programming](#linear-programming)
 - [Request Format/Excel Sheet](#request-formatexcel-sheet)
 - [Civil Engineering](#civil-engineering)
 
-## Pyomo
+## Linear Programming
 
-#### Set
+Linear programming is a technique for maximizing or minimizing a linear
+objective function with linear inequality constraints.
 
-A mathematical set of values.
+#### Objective Function
 
-These are often used to index Pyomo variables, parameters, and constraints.
+This is the linear function we want to max or min.
 
 #### Variable
 
 Some mathematical variable you want to solve for.
 
-#### Parameter
-
-Some mathematical parameter that is passed into the model.
-
 #### Constraint
 
 An equation that relates variables and parameters; the same as a mathematical 
 constraint.
+
+### Example Problem
+
+Say we are at a candy store and would like to buy either chocolate bars and
+popsicles.
+We'll denote the number of chocolate bars we get as `c` and pipsicles as `p`.
+These will be our variables.
+
+We would like to minimize the cost of the chocolate bars and popsicles we buy.
+For our example, we let the price of a chocolate bar be $2 and of a popsicle
+$1.
+Our objective function would then be `$2*x + $1*y`.
+
+However, we would like at least one of both, a total number of both
+chocolate bars and popsicles to be at least 5, and also have more chocolate
+bars than popsicles.
+So our constraints would be:
+- `c >= 1`
+- `p >= 1`
+- `c + p >= 5`
+- `c > p`
+
+Now you hopefully have an idea of what an objective function, a variable, and a
+constraint is in the context of linear programming.
 
 ## Request Format/Excel Sheet
 

@@ -8,10 +8,10 @@ A tutorial on how to install on Linux-based systems can be found
 ## Command-line Usage
 
 ```bash
-python3.6 cli.py --help
+python3.6 run.py --help
 ```
 
-Also, look at the top of the [cli.py](../cli.py) file for more up-to-date 
+Also, look at the top of the [run.py](../run.py) file for more up-to-date 
 details.
 
 ## How to run a Model
@@ -21,7 +21,7 @@ point to your file. See the `config.yaml` for more details.
 
 Once the `config.yaml` is correctly configured, all you have to do is run:
 ```bash
-python3.6 cli.py
+python3.6 run.py
 ```
 
 This will print out the results to the command line and also put the results in

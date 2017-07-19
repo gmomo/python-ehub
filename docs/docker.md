@@ -40,11 +40,10 @@ docker run -it test /bin/bash
 # Docker-compose
 
 This is a program that simplifies working with `docker` commands.
-`docker` commands can get quite verbose (just run `man docker run` to see what
-I mean).
+`docker` commands can get quite verbose (just run `man docker run`).
 
 The `docker-compose.yaml` file is a configuration file for running and building
-a docker container or iamge respectively.
+a docker container or image respectively.
 
 ## Build the image
 
@@ -58,9 +57,9 @@ docker-compose build
 docker-compose up -d
 ```
 
-The `-d` part means run the container in the background.'
+The `-d` part means run the container in the background.
 
-## Stop the server image
+## Stop the server container
 
 ```bash
 docker-compose stop

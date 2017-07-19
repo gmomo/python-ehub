@@ -2,8 +2,8 @@
 
 Follow PEP 8 guidelines unless otherwise noted below.
 
-`pylint` also is a good way to ensure that code is up to the style guidelines.
-You can run `ci.py` to run `pylint` on all files as well as tests.
+Run `python3.6 ci.py` in order to run all the tests and check for any style
+problems.
 
 ## Docstrings
 

@@ -26,7 +26,7 @@ solver that is supported by Pyomo.
 
 Once you have configured the `config.yaml` file, run:
 ```
-python cli.py
+python run.py
 ```
 to solve the model.
 The results should be in the file you specified in `config.yaml`.
@@ -55,9 +55,9 @@ pip install -r requirements.txt
 Also install glpk or another solver.
 Edit the `config.yaml` file to use a selected solver.
 
-Run the `cli.py` script to see if everything works.
+Run the `run.py` script to see if everything works.
 ```
-python cli.py
+python run.py
 ```
 
 ### Docs
