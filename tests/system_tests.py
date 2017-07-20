@@ -23,7 +23,7 @@ class Tests:
     def storage_of_same_type_both_used(results):
         """Ensure that multiple storages that hold the same stream are all
         used."""
-        variables = results['solution']['variables']
+        variables = results['solution']
 
         assert variables['Grid'] == 0
         assert variables['income_from_exports'] == 0
@@ -48,7 +48,7 @@ class Tests:
     def ensure_storage_levels_loop(results):
         """Ensure that the storage level can transfer levels from the end to
         beginning."""
-        variables = results['solution']['variables']
+        variables = results['solution']
 
         assert variables['Grid'] == 0
         assert variables['income_from_exports'] == 0
@@ -68,11 +68,11 @@ class Tests:
         """Ensures that no energy is taken from a storage and immediately
         exported on the first time step when there is no energy in the
         storage."""
-        variables = results['solution']['variables']
-        parameters = results['solution']['parameters']
+        variables = results['solution']
+        parameters = results['solution']
 
         for t in range(0, 3):
-            assert parameters['LOADS'][t]['Elec'] == 0
+            assert parameters['LOADS']['Elec'][t] == 0
             assert variables['energy_from_storage'][t]['Battery'] == 0
 
         assert variables['income_from_exports'] == 0
@@ -82,7 +82,7 @@ class Tests:
     @test('chp.xlsx')
     def simple_chp(results):
         """Ensure a simple CHP converter works."""
-        variables = results['solution']['variables']
+        variables = results['solution']
 
         assert variables['Grid'] == 0  # Don't use any Grid
 
@@ -94,7 +94,7 @@ class Tests:
     @test('elec_and_heat_demands.xlsx')
     def elec_and_heat_demands(results):
         """Ensure that we can have multiple demand streams."""
-        variables = results['solution']['variables']
+        variables = results['solution']
 
         energy_imported = variables['energy_imported']
         for t in range(0, 4):
@@ -108,7 +108,7 @@ class Tests:
     @test('pv.xlsx')
     def ensure_pv_works(results):
         """Ensure that PV works."""
-        variables = results['solution']['variables']
+        variables = results['solution']
 
         energy_imported = variables['energy_imported']
         for t in range(0, 4):
@@ -122,7 +122,7 @@ class Tests:
     @test('fixed_capital_costs.xlsx')
     def ensure_fixed_capital_costs_are_added(results):
         """Ensure there are fixed capital costs."""
-        parameters = results['solution']['parameters']
+        parameters = results['solution']
 
         assert parameters['FIXED_CAPITAL_COSTS']['PV'] == 100
 
@@ -130,7 +130,7 @@ class Tests:
     @test('storage.xlsx')
     def ensure_storage_works(results):
         """Ensure that storages work."""
-        variables = results['solution']['variables']
+        variables = results['solution']
 
         storage_level = variables['storage_level']
         battery = 'Battery'

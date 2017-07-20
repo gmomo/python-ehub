@@ -2,8 +2,6 @@
 Contains utilities for testing.
 """
 import os
-import io
-from contextlib import redirect_stdout
 import functools
 
 from energy_hub import EHubModel
@@ -32,10 +30,7 @@ def test(excel_file):
 
             model = EHubModel(excel=excel)
 
-            glpk_output = io.StringIO()
-            # Don't want to clutter the stdout
-            with redirect_stdout(glpk_output):
-                results = model.solve()
+            results = model.solve(is_verbose=False)
 
             func(results)
 

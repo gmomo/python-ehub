@@ -168,15 +168,11 @@ def pretty_print(results: dict) -> None:
     print("Version: {}".format(version))
 
     print("Solver")
-    print("time: {}".format(solver['time']))
-    print("termination condition: {}".format(solver['termination_condition']))
+    print(f"\ttermination condition: {solver['termination_condition']}")
+    print(f"\ttime: {solver['time']}")
 
     print("Solution")
-    print_section('Objective', results['solution']['objective'])
-    print_section('Sets', results['solution']['sets'])
-    print_section('Parameters', results['solution']['parameters'])
-    print_section('Variable Parameters', results['solution']['param_or_var'])
-    print_section('Variables', results['solution']['variables'])
+    print_section('Stuff', results['solution'])
 
 
 def print_section(section_name: str, solution_section: dict) -> None:
@@ -196,8 +192,14 @@ def print_section(section_name: str, solution_section: dict) -> None:
             value = sort_dict(value)
             value = pd.DataFrame.from_dict(value, orient='index')
 
+            # To remove confusion on what the column '0' means
             if list(value.columns) == [0]:
                 value.columns = [name]
+
+            # Make wide matrices fit on the screen
+            num_rows, num_columns = value.shape
+            if num_columns > num_rows:
+                value = value.T
 
         print(f"\n{name}: \n{value}")
 
