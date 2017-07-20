@@ -1,3 +1,6 @@
+"""
+Contains logging functionality for the server.
+"""
 import logging
 
 
