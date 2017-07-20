@@ -1,3 +1,6 @@
+"""
+A server for remotely solving an energy hub model.
+"""
 import json
 from multiprocessing.pool import Pool
 from socketserver import ThreadingMixIn
@@ -16,12 +19,14 @@ class ThreadedXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
     """A multi-threaded version of a XMLRPC server."""
 
 
+# This is not a constant but pylint doesn't see that
+# pylint: disable=invalid-name
 web_service_functions = []
 
 
 def web_service(func):
     """Mark a function as a XMLRPC callable function.
-    
+
     Args:
         func: The function to be marked as a XMLRPC callable function.
 
@@ -52,7 +57,7 @@ def worker_process(request: dict):
 @web_service
 def solve(request):
     """Solve the EHubModel for an instance of the request format.
-    
+
     Args:
         request: The JSON representation of the the request format to be solved
 
@@ -73,6 +78,7 @@ def solve(request):
 
 
 def main():
+    """The main function of the server."""
     server_logging.create_logger('server_logs.log')
 
     ip, port = SERVER_URL.split(':')
