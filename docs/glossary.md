@@ -5,32 +5,91 @@ This file contains terminology that is used throughout the project.
 ## Table of Contents
 
 - [Linear Programming](#linear-programming)
+- [Energy hub model](#energyhubmodel)
 - [Request Format/Excel Sheet](#request-formatexcel-sheet)
-- [Civil Engineering](#civil-engineering)
+
+## Energy Hub Model
+
+The energy hub model is a form of linear programme that describes an energy conversion and storage problem over pmultiple time steps. 
+For some background information, see [this paper](http://www.sciencedirect.com/science/article/pii/S0360544214007270).
+
+#### Stream
+
+This is an abstract representation of some particular sort of energy.
+
+Examples:
+- Electricity
+- Heat
+- Solar irradiation
+- Gas
+
+#### Time series
+
+A series of values for something changing over time, usually at a fixed interval that matches the time step of the model.
+
+Examples:
+- Energy demands to be met each timestep
+- Solar irradiation available each timestep
+
+#### Energy balance
+
+A constraint that enforces the balance of energy into and out of the system (since energy can be neither created or destroyed). The constraint is applied for every energy stream, for every time step. In order to achieve this balance, energy may have to be converted between streams and/or stored between time steps, see below.
+
+#### Converter
+
+A component that converts one or more input energy streams into one or more output energy streams. Each converter has a variable associated with it that defines how much energy is converted at each time step. The value of this variable is determined based on the energy balance constraints and the overall desire to minimise the objective function.
+
+Examples:
+- Gas boiler / furnace
+    - Takes gas and converts it into heat
+- Heat pump
+    - Takes electricity and converts it into heat
+- PV (photovoltaic) panels
+    - Takes solar irradiation and converts it into electricity.    
+- Combined heat and power plant
+    - Takes gas and converts it into both heat and electricity
+
+#### Storage
+
+A component that stores a given energy stream. Each storage has three variables associated with it for every time step: how much energy enters the store, how much leaves the store, and how much is currently in the store. The first two appear in the energy balance constraints; all three appear in a storage continuity constraint.
+
+Examples: 
+- Battery
+    - Stores electricity
+- Hot water tank
+    - Stores heat
+
+#### Capacity
+
+The size of a component (converter or storage). The capacity is the same for all time steps, and determines the maximum energy converted by a converter or stored in a storage.
+
+The capacity may be fixed (set to a constant value before the model is run) or variable (assigned to an optimisation variable). 
 
 ## Linear Programming
 
-Linear programming is a technique for maximizing or minimizing a linear
-objective function with linear inequality constraints.
+Linear programming is a technique for minimizing a linear
+objective function of many variables subject to linear equality and 
+inequality constraints.
 
 #### Objective Function
 
-This is the linear function we want to max or min.
+This is the function we want to optimize. By convention it is always to be minimized.
 
 #### Variable
 
-Some mathematical variable you want to solve for.
+The set of variables you want to solve for.
 
 #### Constraint
 
-An equation that relates variables and parameters; the same as a mathematical 
-constraint.
+A linear equation that relates variables to constant values and/or to each other.
+Constraints can be equalities or inequalities. By convention inequalities are always less-than or less-than-or-equal,
+however we can express them as greater-than or greater-than-or-eual-to and they are converted later.
 
 ### Example Problem
 
 Say we are at a candy store and would like to buy either chocolate bars and
 popsicles.
-We'll denote the number of chocolate bars we get as `c` and pipsicles as `p`.
+We'll denote the number of chocolate bars we get as `c` and popsicles as `p`.
 These will be our variables.
 
 We would like to minimize the cost of the chocolate bars and popsicles we buy.
@@ -54,65 +113,7 @@ constraint is in the context of linear programming.
 
 #### Capacity
 
-A variable essentially. You can reference this capacity in certain places in 
-order to introduce a variable amount of something.
+An optimisation variable that relates to the capacity of a component (converter or storage). You can reference this capacity in other places in the input data.
 
-For example, you can create a capacity in the capacities tab and then reference
-it in the capacity row in the Converters tab. This makes it so that it finds 
-the most optimal converter capacity as well as the other variables.
-
-## Energy Hub Model
-
-For a paper on some background information, see 
-[this paper](http://www.sciencedirect.com/science/article/pii/S0360544214007270).
-
-#### Stream
-
-This is an abstract representation of some sort of energy.
-
-Examples:
-- Electricity
-- Heat
-- Solar Irradiation
-- Gas
-
-#### Converter
-
-A piece of technology or machine that converts one or more input energy streams 
-into one or more output energy streams.
-
-Examples:
-- Solar panels
-    - Takes solar irradiation and converts it into electricity.
-- Gas heater
-    - Takes gas and converts it into heat
-
-#### Storage
-
-A piece of technology that stores an energy stream.
-
-Examples: 
-- Battery
-    - stores electricity
-- Hot water tank
-    - stores heat
-
-#### Time Series
-
-Some data that has time associated with it.
-
-Examples:
-- Energy demands
-- Solar irradiation
-
-#### PV
-
-Short for photovoltaic.
-Usually used to refer to solar panels.
-
-#### Solar
-
-Anything that uses the sun.
-Does **not** have to refer to solar panels.
-
-#### Capacity
+For example, you can create a capacity in the Capacities tab and then reference
+it in the capacity row in the Converters tab. This sets the capacity of that component to be an optimization variable.
