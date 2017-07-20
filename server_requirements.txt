@@ -1,0 +1,8 @@
+# The required Python dependencies to be installed via
+#     pip install -r requirements.txt
+Pyomo==5.2
+pandas==0.20.1
+numpy==1.12.1
+PyYAML==3.12
+xlrd==1.0.0
+jsonschema==2.6.0
