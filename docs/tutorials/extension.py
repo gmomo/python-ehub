@@ -19,27 +19,26 @@ class MyModel(EHubModel):
     Here, we can add our own constraints.
     """
 
-    @staticmethod
     @constraint()
-    def new_constraint(model):
+    def new_constraint(self):
         """
         This is a new constraint of the model.
 
         We can set up whatever constraint we want here.
 
-        Args:
-            model: The model instance that we can use to get Pyomo variables,
-            parameters, etc..
-
         Returns:
             Some constraint that relates variables, parameters, etc. with each
             other.
         """
-        return model.TankSize + model.BatSize <= 200
+        # Since these variables on loaded on run-time, PyCharm and pylint won't
+        # see them. They think they don't exist. So we just tell them to trust
+        # us and ignore the warnings.
+        # pylint: disable=no-member
+        # noinspection PyUnresolvedReferences
+        return self.TankSize + self.BatSize <= 200
 
-    @staticmethod
-    @constraint('time', 'energy_carrier')
-    def indexed_constraint(model, t, output_stream):
+    @constraint('time', 'output_streams')
+    def indexed_constraint(self, t, output_stream):
         """
         This is an example of a constraint that is indexed by some Pyomo sets.
 
@@ -53,7 +52,6 @@ class MyModel(EHubModel):
                     indexed_constraint(model, t, output_stream)
 
         Args:
-            model: The model instance containing everything Pyomo
             t: A specific time step in `model.time`
             output_stream: A specific output energy stream from
                 `model.energy_carrier`.
@@ -64,7 +62,7 @@ class MyModel(EHubModel):
         # This says the the energy exported at every time step and every output
         # stream has to be 0. This could mean that we don't want to export any
         # energy at all and just use it to fill storages instead.
-        return model.energy_exported[t, output_stream] == 0
+        return self.energy_exported[t][output_stream] == 0
 
     @constraint_list()
     def constraint_list_example(self):
@@ -80,20 +78,32 @@ class MyModel(EHubModel):
         Yields:
             Constraints
         """
-        for t in range(len(self._model.time)):
-            if t > 10:
+        for t in range(len(self.time)):
+            if 10 <= t <= 18:
                 # Lookup Python generators to learn more on that this does
-                yield self._model.energy_exported[t, 'Elec'] > 10
+                yield self.energy_imported[t]['Grid'] >= 10
 
-# This is a cross-platform way of getting the path to the Excel file
-current_directory = os.path.dirname(os.path.realpath(__file__))
-excel_file = os.path.join(current_directory, 'extension.xlsx')
 
-# Here's where we instantiate our model. Nothing is solved at this point.
-my_model = MyModel(excel=excel_file)
+def main():
+    """
+    This is the main executing function of the script.
 
-# Now we solve the model and get back our results
-results = my_model.solve()
+    It is considered good practise to have a main function for a script.
+    """
+    # This is a cross-platform way of getting the path to the Excel file
+    current_directory = os.path.dirname(os.path.realpath(__file__))
+    excel_file = os.path.join(current_directory, 'extension.xlsx')
 
-# Now we print the results to the console so we can view them in a nice way
-pretty_print(results)
+    # Here's where we instantiate our model. Nothing is solved at this point.
+    my_model = MyModel(excel=excel_file)
+
+    # Now we solve the model and get back our results
+    results = my_model.solve()
+
+    # Now we print the results to the console so we can view them in a nice way
+    pretty_print(results)
+
+
+# If we are being run as a script
+if __name__ == '__main__':
+    main()
