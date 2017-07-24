@@ -273,7 +273,7 @@ class InputData:
 
     @cached_property
     def fuel_price(self) -> Dict[str, float]:
-        """ Returns the carbon price of each fuel. """
+        """Return the price of each fuel."""
         fuel_prices = {}
         for tech in self.converters:
             input_ = tech.inputs[0]  # Assume only one input per tech
