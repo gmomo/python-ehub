@@ -57,6 +57,9 @@ class Variable:
     def __rsub__(self, other: ValidOperand) -> Expression:
         return Expression('-', [other, self])
 
+    def __neg__(self):
+        return Expression('-', [0, self])
+
     def __mul__(self, other: ValidOperand) -> Expression:
         if isinstance(other, Variable):
             raise TypeError('Cannot multiply variables in linear programming')
