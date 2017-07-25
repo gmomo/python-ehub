@@ -40,10 +40,11 @@ class MyModel(EHubModel):
     @constraint('time', 'output_streams')
     def indexed_constraint(self, t, output_stream):
         """
-        This is an example of a constraint that is indexed by some Pyomo sets.
+        This is an example of a constraint that is indexed by some data.
 
-        Each of the arguments to `@contraint` are the names of Pyomo sets. The
-        constraint is then passed each element of those sets to this method.
+        Each of the arguments to `@contraint` are the names of sets of data
+        that the model (self) has. The constraint is then passed each element
+        of those sets to this method.
 
         It acts much like:
 
@@ -52,9 +53,9 @@ class MyModel(EHubModel):
                     indexed_constraint(model, t, output_stream)
 
         Args:
-            t: A specific time step in `model.time`
+            t: A specific time step in `self.time`
             output_stream: A specific output energy stream from
-                `model.energy_carrier`.
+                `self.output_streams`.
 
         Returns:
             Something similar to the above non-indexed constraint.

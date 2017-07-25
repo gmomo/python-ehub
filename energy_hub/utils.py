@@ -30,7 +30,8 @@ def constraint(*args, enabled=True):
     `_add_indexed_constraints`.
 
     Args:
-        *args: The arguments that are passed to Pyomo's Constraint constructor
+        *args: The indices that the constraint is indexed by. Each element of
+            each index is passed to the method.
         enabled: Is the constraint enabled? Defaults to True.
 
     Returns:
