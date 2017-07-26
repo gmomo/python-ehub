@@ -131,7 +131,11 @@ class Expression:
 
     @staticmethod
     def _handle_add(arguments: Iterable['Expression']):
-        return sum(arguments)
+        result = 0
+        for arg in arguments:
+            result += arg
+
+        return result
 
     @staticmethod
     def _handle_subtraction(arguments: List['Expression']):
