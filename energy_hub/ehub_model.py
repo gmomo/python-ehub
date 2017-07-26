@@ -27,7 +27,7 @@ DEFAULT_SOLVER_SETTINGS = {
     },
 }
 
-BIG_M = 5000
+BIG_M = 5000000
 TIME_HORIZON = 20
 MAX_CARBON = 650000
 MAX_SOLAR_AREA = 500
@@ -642,6 +642,7 @@ class EHubModel:
                 continue
 
             logging.info(f'{rule.__name__} is enabled')
+            print(f'{rule.__name__} is enabled')
 
             if not rule.args:
                 # Constraint is not indexed by anything
