@@ -118,7 +118,11 @@ class InputData:
     @cached_property
     def num_time_steps(self) -> int:
         """Return the number of time steps in the model."""
-        return len(list(self.demands)[0].data.keys())
+        # Assume all time series have data for all time steps
+        example_series = list(self.demands)[0]
+        time = example_series.data.keys()
+
+        return len(time)
 
     @cached_property
     def num_demands(self) -> int:
