@@ -28,6 +28,18 @@ class Constraint:
         lhs, operator, rhs = self._constraint
         return f'{lhs} {operator} {rhs}'
 
+    @property
+    def rhs(self):
+        return self._constraint[2]
+
+    @property
+    def lhs(self):
+        return self._constraint[0]
+
+    @property
+    def operator(self):
+        return self._constraint[1]
+
     def construct(self):
         """Build the constraint for use in the solver."""
         lhs, operator, rhs = self._constraint
