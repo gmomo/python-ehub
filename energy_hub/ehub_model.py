@@ -689,7 +689,8 @@ class EHubModel:
             upper_bound = capacity.upper_bound
 
             if lower_bound is not None and upper_bound is not None:
-                yield lower_bound <= variable <= upper_bound
+                yield lower_bound <= variable
+                yield variable <= upper_bound
             elif lower_bound is not None and upper_bound is None:
                 yield lower_bound <= variable
             elif lower_bound is None and upper_bound is not None:
