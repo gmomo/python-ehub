@@ -118,7 +118,11 @@ class InputData:
     @cached_property
     def num_time_steps(self) -> int:
         """Return the number of time steps in the model."""
-        return len(list(self.demands)[0].data)
+        # Assume all time series have data for all time steps
+        example_series = list(self.demands)[0]
+        time = example_series.data.keys()
+
+        return len(time)
 
     @cached_property
     def num_demands(self) -> int:
@@ -129,7 +133,7 @@ class InputData:
     def loads(self) -> Dict[str, Dict[int, float]]:
         """The data for all demands as a dictionary that is indexed by (time,
         demand time series ID)."""
-        return {demand.stream: demand.pyomo_data for demand in self.demands}
+        return {demand.stream: demand.data for demand in self.demands}
 
     @cached_property
     def solar_data(self) -> Dict[int, float]:
@@ -138,7 +142,7 @@ class InputData:
         solar = [time_series for time_series in self.time_series_list
                  if time_series.is_solar][0]  # Assume there is only one
 
-        return solar.pyomo_data
+        return solar.data
 
     @cached_property
     def chp_list(self) -> List[Converter]:

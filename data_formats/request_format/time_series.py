@@ -43,13 +43,8 @@ class TimeSeries:
                                    or self._series['id'] == 'Irradiation')
 
     @property
-    def data(self) -> List[float]:
-        """The raw data as a list."""
-        return self._series['data']
-
-    @property
-    def pyomo_data(self) -> Dict[int, float]:
-        """A dictionary for use with Pyomo."""
+    def data(self) -> Dict[int, float]:
+        """A dictionary from time to the values of the series."""
         return {
             column: value
             for column, value in enumerate(self._series['data'])

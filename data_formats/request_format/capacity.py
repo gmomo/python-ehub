@@ -26,7 +26,7 @@ class Capacity:
 
     @property
     def domain(self):
-        """The Pyomo domain of the capacity."""
+        """The domain of the capacity."""
         return self._capacity['type']
 
     @property

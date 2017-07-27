@@ -113,7 +113,8 @@ def create_response(status: Status, model: Dict) -> Dict[str, Any]:
 
     Args:
         status: The status of the problem
-        model: The model that was used by Pyomo to generate results
+        model: A dictionary of the variables and their values that were used in
+            the model
     """
     result = {
         'version': '0.1.0',
