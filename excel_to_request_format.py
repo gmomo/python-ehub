@@ -37,15 +37,18 @@ def convert(excel_file):
     Returns:
         The request format as a Python dict
     """
+    last_exception = None
     for subclass in Converter.__subclasses__():
         converter = subclass(excel_file)
 
         # Assume that any errors are due to the format and nothing else
-        with suppress(Exception):
+        try:
             return converter.convert()
+        except Exception as exc:
+            last_exception = exc
 
     # Found no converter for the excel file
-    raise FormatUnsupportedError
+    raise FormatUnsupportedError from last_exception
 
 
 class Converter:
