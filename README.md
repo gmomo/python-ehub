@@ -78,5 +78,7 @@ Common errors
 ---------------
 
 **DisDemands Error**
+
       •	Comment out or delete this line in the DisDemands function: 'for i, value in enumerate(np.array(self.TechOutputs[[val-2]],dtype=int)):'
+
       •	Change it to this: 'for i, value in enumerate(np.array(pd.Series.to_frame(self.TechOutputs.iloc[:,val-2]),dtype=int)):'
