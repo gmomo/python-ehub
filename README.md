@@ -7,7 +7,7 @@ Requirements
 - Python 2.7+ (pandas (tested on version 0.18), numpy (tested on version 1.11), matplotlib libraries)
 - Jupyter notebook preferred
 - Pyomo library (tested on version 5.1.1)
-- `glpk` or another solver supported by Pyomo
+- `glpk` or another solver supported by Pyomo (run the following in the Anaconda command line to install glpk: `conda install -c conda-forge glpk `)
 
 The easiest way for a windows machine is to install anaconda package from https://www.continuum.io/downloads . In order to install missing libraries run `Anaconda Command Prompt` and then type `conda install library_name`. If some library does not support conda, try by typing in `Anaconda Command Prompt` `pip install library_name`.
 
@@ -74,4 +74,9 @@ In order to have bidirectional decentralized network change the domain of variab
 In order to have network layout optimization change the value of variable `fixednetwork` to 0 in the Python code.
 In order to have fixed network layout change the value of variable `fixednetwork` to 1 in the Python code.
 
+Common errors
+---------------
 
+**DisDemands Error**
+      •	Comment out or delete this line in the DisDemands function: 'for i, value in enumerate(np.array(self.TechOutputs[[val-2]],dtype=int)):'
+      •	Change it to this: 'for i, value in enumerate(np.array(pd.Series.to_frame(self.TechOutputs.iloc[:,val-2]),dtype=int)):'
