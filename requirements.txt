@@ -1,7 +1,7 @@
 # The required Python dependencies to be installed via
 #     pip install -r requirements.txt
-sh
-Pyomo==5.2
+pulp
+contexttimer
 pandas==0.20.1
 numpy==1.12.1
 PyYAML==3.12

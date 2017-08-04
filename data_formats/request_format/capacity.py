@@ -3,8 +3,6 @@ Provides functionality for handling a request format capacity.
 """
 from typing import Optional
 
-from pyomo.core.base import Reals, Integers, Binary
-
 
 class Capacity:
     """
@@ -28,14 +26,8 @@ class Capacity:
 
     @property
     def domain(self):
-        """The Pyomo domain of the capacity."""
-        cases = {
-            'Continuous': Reals,
-            'Integer': Integers,
-            'Binary': Binary,
-        }
-        default = Reals
-        return cases.get(self._capacity['type'], default)
+        """The domain of the capacity."""
+        return self._capacity['type']
 
     @property
     def lower_bound(self) -> Optional[float]:

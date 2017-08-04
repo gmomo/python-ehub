@@ -16,9 +16,8 @@ Returns:
     A standard error code: 0 for success, non-zero for failure
 """
 import os
+import subprocess
 from typing import Iterable
-
-import sh
 
 
 class CheckError(Exception):
@@ -33,13 +32,13 @@ def lint(file: str) -> None:
         file: The relative path of the file to `ci.py`
     """
     print(f"Running pylint on {file}")
+
     try:
-        _ = sh.pylint(file)
-    except sh.ErrorReturnCode as exc:
-        print(f"Pylint output:\n{exc.stdout.decode('utf-8')}")
-        raise CheckError
-    else:
-        print(f"pylint found no errors in {file}")
+        _ = subprocess.check_output(['pylint', file])
+    except subprocess.CalledProcessError as exc:
+        pylint_output = exc.stdout.decode('utf-8')
+
+        raise CheckError(pylint_output)
 
 
 def get_files_to_check(directory: str) -> Iterable[str]:
@@ -53,30 +52,73 @@ def get_files_to_check(directory: str) -> Iterable[str]:
         An iterator over the Python files
     """
     for file in os.listdir(directory):
+        # Don't show the '.'.  It's noise.
+        if directory != '.':
+            file = os.path.join(directory, file)
+
         if file.endswith('.py'):
             yield file
         elif os.path.isdir(file):
-            for inner_file in get_files_to_check(file):
-                yield file + '/' + inner_file
+            inner_directory = file
+
+            for inner_file in get_files_to_check(inner_directory):
+                yield inner_file
 
 
-def main() -> None:
-    """The main function that runs the script."""
+def run_linting() -> int:
+    """
+    Run pylint on all the files.
+
+    Returns:
+        The return code
+    """
     return_code = 0
     print("Running linting process...")
     for file in get_files_to_check('.'):
         try:
             lint(file)
-        except CheckError:
+        except CheckError as exc:
+            print(exc)
             return_code = -1
 
+    return return_code
+
+
+def run_system_test():
+    """
+    Run all the system tests.
+
+    Returns:
+        The return code
+    """
     print("Running tests...")
-    try:
-        sh.python("tests/tests.py")
-    except sh.ErrorReturnCode:
-        exit(-1)
-    else:
-        print("Tests passed.")
+    result = subprocess.run(['python3.6', '-m', 'tests.system_tests'])
+    if result.returncode != 0:
+        exit(result.returncode)
+
+
+def run_doctests():
+    """
+    Run `doctest` on all the files.
+
+    Returns:
+        The return code of running all the tests.
+    """
+    print('Running doctests...')
+    for file in get_files_to_check('.'):
+        result = subprocess.run(['python3.6', '-m', 'doctest', file])
+        if result.returncode != 0:
+            exit(result.returncode)
+
+    print('Doctests PASSED')
+
+
+def main() -> None:
+    """The main function that runs the script."""
+    return_code = run_linting()
+
+    run_system_test()
+    run_doctests()
 
     exit(return_code)
 

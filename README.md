@@ -8,7 +8,7 @@ Requirements
 
 - Python 3.6.1
 - pip for Python 3.6.1
-- `glpk` or another solver supported by Pyomo
+- `GLPK` or another solver supported by PyLP
 
 Running a Model
 ---------------
@@ -22,11 +22,11 @@ you want to load and output the results of the model respectively.
 While inside the `config.yaml` file, be sure to set the settings for using a
 specific solver that is installed on your system.
 The default one is `glpk` with some options, but you can set it to any other
-solver that is supported by Pyomo.
+solver that is supported by PyLP.
 
 Once you have configured the `config.yaml` file, run:
 ```
-python cli.py
+python run.py
 ```
 to solve the model.
 The results should be in the file you specified in `config.yaml`.
@@ -55,9 +55,9 @@ pip install -r requirements.txt
 Also install glpk or another solver.
 Edit the `config.yaml` file to use a selected solver.
 
-Run the `cli.py` script to see if everything works.
+Run the `run.py` script to see if everything works.
 ```
-python cli.py
+python run.py
 ```
 
 ### Docs

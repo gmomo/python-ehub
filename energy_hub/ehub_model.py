@@ -1,26 +1,24 @@
 """
 Provides a class for encapsulating an energy hub model.
 """
-import functools
+from itertools import product
 from typing import Iterable
-
-from pyomo.core.base import (
-    ConcreteModel, Set, Param, NonNegativeReals, Binary, Var, Reals,
-    Constraint, ConstraintList, Objective, minimize,
-)
-from pyomo.opt import SolverFactory, SolverManagerFactory
-
-# This import is used to find solvers.
-# noinspection PyUnresolvedReferences
-# pylint: disable=unused-import
-import pyomo.environ
+import logging
 
 import excel_to_request_format
 from data_formats import response_format
-from energy_hub import Storage
+from data_formats.request_format import Storage
 from energy_hub.input_data import InputData
 from energy_hub.param_var import ConstantOrVar
-from energy_hub.range_set import RangeSet
+from energy_hub.utils import constraint, constraint_list
+from pylp import RealVariable, IntegerVariable, BinaryVariable
+import pylp
+
+DOMAIN_TO_VARIABLE = {
+    'Continuous': RealVariable,
+    'Integer': IntegerVariable,
+    'Binary': BinaryVariable,
+}
 
 DEFAULT_SOLVER_SETTINGS = {
     'name': 'glpk',
@@ -35,56 +33,19 @@ MAX_CARBON = 650000
 MAX_SOLAR_AREA = 500
 
 
-def constraint(*args, enabled=True):
-    """
-    Mark a function as a constraint of the model.
+class InfeasibleConstraintError(Exception):
+    """A constraint will always be false."""
+    def __init__(self, constraint_name: str = None, arguments: tuple = None) -> None:
+        if arguments is None:
+            message = f'Constraint {constraint_name} is False'
+        else:
+            message = f'Constraint {constraint_name}{arguments} is False'
 
-    The function that adds these constraints to the model is
-    `_add_constraints_new`.
-
-    Args:
-        *args: The arguments that are passed to Pyomo's Constraint constructor
-        enabled: Is the constraint enabled? Defaults to True.
-
-    Returns:
-        The decorated function
-    """
-    def _wrapper(func):
-        functools.wraps(func)
-
-        func.is_constraint = True
-        func.args = args
-        func.enabled = enabled
-
-        return func
-
-    return _wrapper
+        super().__init__(message)
 
 
-def constraint_list(*, enabled=True):
-    """
-    Mark a function as a ConstraintList of the model.
-
-    The function has to return a generator. ie: must use a yield in the method
-    body.
-
-    Args:
-        enabled: Is the constraint enabled? Defaults to True.
-
-    Returns:
-        The decorated function
-    """
-    def _wrapper(func):
-        functools.wraps(func)
-
-        func.is_constraint_list = True
-        func.enabled = enabled
-
-        return func
-
-    return _wrapper
-
-
+# Allow variable docstrings
+# pylint: disable=pointless-string-statement
 class EHubModel:
     """
     Represents a black-box Energy Hub.
@@ -97,16 +58,16 @@ class EHubModel:
             excel: The Excel 2003 file for input data
             request: The request format dictionary
         """
-        self._model = ConcreteModel()
         self._data = None
 
         if excel:
             request = excel_to_request_format.convert(excel)
 
         if request:
-            self._data = InputData(request, self._model)
+            self._data = InputData(request)
 
         if self._data:
+            self._constraints = []
             self._prepare()
         else:
             raise RuntimeError("Can't create a hub with no data.")
@@ -117,398 +78,517 @@ class EHubModel:
         self._add_variables()
         self._add_parameters()
         self._add_constraints()
-        self._add_objective()
 
     def _create_sets(self):
         data = self._data
-        model = self._model
 
-        num_time_steps = data.num_time_steps
+        self.streams = data.stream_names
+        """The names of the streams."""
 
-        model.streams = Set(initialize=data.stream_names)
+        self.time = range(data.num_time_steps)
+        """The time steps of the model."""
 
-        model.time = RangeSet(stop=num_time_steps)
-        model.sub_time = RangeSet(start=1, stop=num_time_steps,
-                                  within=model.time)
+        self.technologies = data.converter_names
+        """The names of the converters."""
+        self.techs_without_grid = data.converter_names_without_grid
+        """The names of the converters without the grid."""
 
-        model.technologies = Set(initialize=data.converter_names)
-        model.techs_without_grid = Set(
-            initialize=data.converter_names_without_grid,
-            within=model.technologies
+        self.storages = data.storage_names
+        """The names of the storages."""
+        self.output_streams = data.output_stream_names
+        """The output stream names."""
+        self.demands = data.output_stream_names
+        """The names of the output streams that are demanded."""
+
+        self.techs = data.techs
+        """The converters that are non-solar and not the grid."""
+        self.solar_techs = data.solar_techs
+        """The names of the solar converters."""
+        self.disp_techs = data.disp_techs
+        """The names of the dispatch converters."""
+        self.roof_tech = data.roof_tech
+        """The names of the roof technologies."""
+
+        self.part_load = data.part_load_techs
+        """The names of the converters that have a part load."""
+
+    def _add_variables(self):
+        self._add_capacity_variables()
+
+        # Global variables
+        self.energy_imported = {
+            t: {tech: RealVariable() for tech in self.technologies}
+            for t in self.time
+        }
+        """The energy that is sent into a converter per time step."""
+        self.energy_exported = {
+            t: {out: RealVariable() for out in self.output_streams}
+            for t in self.time
+        }
+        """The energy that is exported to the grid per time step."""
+
+        self.capacities = ConstantOrVar(self.technologies,
+                                        model=self,
+                                        values=self._data.converters_capacity)
+        """
+        The capacity of each tech.
+
+        The capacity could either be a constant value or it could be a
+        variable.
+        """
+
+        self.is_installed = {tech: BinaryVariable()
+                             for tech in self.technologies}
+        """
+        Is a converter installed?
+
+        This is optimized for if the capacity is a variable. If the converter's
+        capacity is a constant, it is assumed to be installed.
+        """
+
+        self.is_on = {
+            t: {tech: BinaryVariable() for tech in self.technologies}
+            for t in self.time
+        }
+        """
+        Whether a converter is turned on at a time step.
+
+        This is only adjusted for techs that can be turned on and off.
+        """
+
+        self.total_cost = RealVariable()
+        """The total cost of the model."""
+        self.operating_cost = RealVariable()
+        """The operating cost of the model."""
+        self.maintenance_cost = RealVariable()
+        """The maintenance cost of the model."""
+        self.income_from_exports = RealVariable()
+        """
+        The income that is generated by selling excess energy to the grid.
+        """
+        self.investment_cost = RealVariable()
+        """The investment cost of the converters and storages."""
+
+        self.total_carbon = RealVariable()
+        """The total carbon produced by the model."""
+
+        self.energy_to_storage = {
+            t: {storage: RealVariable() for storage in self.storages}
+            for t in self.time
+        }
+        """The energy sent to the storage at each time step."""
+        self.energy_from_storage = {
+            t: {storage: RealVariable() for storage in self.storages}
+            for t in self.time
+        }
+        """The energy taken from a storage at each time step."""
+
+        self.storage_level = {
+            t: {storage: RealVariable() for storage in self.storages}
+            for t in range(len(self.time) + 1)
+        }
+        """The energy level in each storage at each point in time.
+
+        Time steps are not points in time, but time intervals. Time step 0 is
+        from time 0 up to, but not including, time 1. Time step 1 is from
+        time 1 up to time 2, and so on.
+        But for storages, we measure the level at each point in time. So for
+        time step 0, we are measuring it at that point in time. The level
+        for time step 1 is at time point 1, and so on.
+        So we need an additional time "step" to measure the level after
+        everything has happened in the last time step.
+
+        ```
+            time step 0   time step 1   time step 2
+                 |             |             |
+          |-------------|-------------|-------------|---...
+        time 0        time 1        time 2        time 3
+        ```
+        """
+
+        self.storage_capacity = ConstantOrVar(
+            self.storages, model=self, values=self._data.storage_capacity
         )
+        """
+        The capacity of each storage.
 
-        model.storages = Set(initialize=data.storage_names)
-        model.energy_carrier = Set(initialize=data.output_stream_names)
-        model.demands = Set(initialize=data.output_stream_names)
+        It can either be a constant value or a variable.
+        """
 
-        model.techs = Set(initialize=data.max_capacity_names,
-                          within=model.technologies)
-        model.solar_techs = Set(initialize=data.solar_techs,
-                                within=model.technologies)
-        model.disp_techs = Set(initialize=data.disp_techs,
-                               within=model.technologies)
-        model.roof_tech = Set(initialize=data.roof_tech,
-                              within=model.technologies)
+    def _add_parameters(self):
+        data = self._data
 
-        model.part_load = Set(initialize=data.part_load_techs,
-                              within=model.technologies)
+        # coupling matrix & Technical parameters
+        # coupling matrix technology efficiencies
+        self.CONVERSION_EFFICIENCY = data.c_matrix
+        """
+        The conversion efficiency for each stream each converter.
 
-    def _add_objective(self):
-        def _rule(model):
-            return model.total_cost
+        For example, a converter that takes in Gas and outputs Elec at 100%
+        efficiency has a -1 for Gas and 1 for Elec stream.
+        """
 
-        self._model.total_cost_objective = Objective(rule=_rule, sense=minimize)
+        self.MAX_CHARGE_RATE = data.storage_charge
+        """
+        The maximum charge rate of each storage.
 
-    @staticmethod
+        This is a constant factor of the charge coming into the storage at each
+        time step.
+        """
+        self.MAX_DISCHARGE_RATE = data.storage_discharge
+        """
+        The maximum discharge rate of each storage.
+
+        This is a constant factor of the charge coming out of the storage at
+        each time step.
+        """
+        self.STORAGE_STANDING_LOSSES = data.storage_loss
+        """
+        The decay rate for each storage.
+
+        For example, if the decay rate was 0.01 then the storage retains 99% of
+        its storage level for each time step.
+        """
+        self.CHARGING_EFFICIENCY = data.storage_ef_ch
+        """The charging efficiency for each storage."""
+        self.DISCHARGING_EFFICIENCY = data.storage_ef_disch
+        """The discharging efficiency for each storage."""
+        self.MIN_STATE_OF_CHARGE = data.storage_min_soc
+        """The minimum amount of energy the storage must have per time step."""
+
+        self.PART_LOAD = data.part_load
+        """The part load of each tech if it has it."""
+
+        self.CARBON_FACTORS = data.carbon_factors
+        self.MAX_CARBON = MAX_CARBON
+
+        # Cost parameters
+        # Technologies capital costs
+        self.LINEAR_CAPITAL_COSTS = data.linear_cost
+        self.FIXED_CAPITAL_COSTS = data.fixed_capital_costs
+        self.LINEAR_STORAGE_COSTS = data.storage_lin_cost
+        # Operating prices technologies
+        self.OPERATING_PRICES = data.fuel_price
+        """The price of each fuel."""
+        self.FEED_IN_TARIFFS = data.feed_in
+        """The export price of each fuel."""
+        # Maintenance costs
+        self.OMV_COSTS = data.variable_maintenance_cost
+
+        # Declaring Global Parameters
+        self.TIME_HORIZON = TIME_HORIZON
+
+        self.BIG_M = BIG_M
+
+        self.INTEREST_RATE = data.interest_rate
+        """The interest rate of the model."""
+
+        self.MAX_SOLAR_AREA = MAX_SOLAR_AREA
+        """The roof area of the model."""
+
+        # loads
+        self.LOADS = data.loads
+        """The amount of energy demanded at each time step."""
+        self.SOLAR_EM = data.solar_data
+        """The amount of solar irradiation per time step."""
+
+        self.NET_PRESENT_VALUE_TECH = data.tech_npv
+        """The ratio for the net present value of each converter."""
+        self.NET_PRESENT_VALUE_STORAGE = data.storage_npv
+        """The ratio for the net present value of each storage."""
+
+    @property
+    def objective(self):
+        """The objective "function" of the model."""
+        return self.total_cost
+
     @constraint()
-    def calculate_total_cost(model: ConcreteModel) -> bool:
-        """
-        A constraint for calculating the total cost.
+    def calculate_total_cost(self):
+        """A constraint for calculating the total cost."""
+        cost = (self.investment_cost
+                + self.operating_cost
+                + self.maintenance_cost)
+        income = self.income_from_exports
 
-        Args:
-            model: The Pyomo model
-        """
-        cost = (model.investment_cost
-                + model.operating_cost
-                + model.maintenance_cost)
-        income = model.income_from_exports
+        return self.total_cost == cost - income
 
-        return model.total_cost == cost - income
-
-    @staticmethod
     @constraint()
-    def calculate_total_carbon(model):
-        """
-        A constraint for calculating the total carbon produced.
-
-        Args:
-            model: The Pyomo model
-        """
+    def calculate_total_carbon(self):
+        """A constraint for calculating the total carbon produced."""
         total_carbon = 0
-        for tech in model.technologies:
-            total_energy_imported = sum(model.energy_imported[t, tech]
-                                        for t in model.time)
-            carbon_factor = model.CARBON_FACTORS[tech]
+        for tech in self.technologies:
+            total_energy_imported = sum(self.energy_imported[t][tech]
+                                        for t in self.time)
+            carbon_factor = self.CARBON_FACTORS[tech]
 
             total_carbon += carbon_factor * total_energy_imported
 
-        return model.total_carbon == total_carbon
+        return self.total_carbon == total_carbon
 
-    @staticmethod
     @constraint()
-    def calculate_investment_cost(model):
-        """
-        A constraint for calculating the investment cost.
+    def calculate_investment_cost(self):
+        """A constraint for calculating the investment cost."""
+        storage_cost = sum(self.NET_PRESENT_VALUE_STORAGE[storage]
+                           * self.LINEAR_STORAGE_COSTS[storage]
+                           * self.storage_capacity[storage]
+                           for storage in self.storages)
 
-        Args:
-            model: The Pyomo model
-        """
-        storage_cost = sum(model.NET_PRESENT_VALUE_STORAGE[storage]
-                           * model.LINEAR_STORAGE_COSTS[storage]
-                           * model.storage_capacity[storage]
-                           for storage in model.storages)
-
-        tech_cost = sum(model.NET_PRESENT_VALUE_TECH[tech]
-                        * model.LINEAR_CAPITAL_COSTS[tech]
-                        * model.capacities[tech]
-                        + (model.FIXED_CAPITAL_COSTS[tech]
-                           * model.Ytechnologies[tech])
-                        for tech in model.techs_without_grid)
+        tech_cost = sum(self.NET_PRESENT_VALUE_TECH[tech]
+                        * self.LINEAR_CAPITAL_COSTS[tech]
+                        * self.capacities[tech]
+                        + (self.FIXED_CAPITAL_COSTS[tech]
+                           * self.is_installed[tech])
+                        for tech in self.techs_without_grid)
 
         cost = tech_cost + storage_cost
-        return model.investment_cost == cost
+        return self.investment_cost == cost
 
-    @staticmethod
     @constraint()
-    def calculate_income_from_exports(model):
-        """
-        A constraint for calculating the income from exported streams.
-
-        Args:
-            model: The Pyomo model
-        """
+    def calculate_income_from_exports(self):
+        """A constraint for calculating the income from exported streams."""
         income = 0
-        for energy in model.energy_carrier:
-            total_energy_exported = sum(model.energy_exported[t, energy]
-                                        for t in model.time)
+        for energy in self.output_streams:
+            total_energy_exported = sum(self.energy_exported[t][energy]
+                                        for t in self.time)
 
-            income += model.FEED_IN_TARIFFS[energy] * total_energy_exported
+            income += self.FEED_IN_TARIFFS[energy] * total_energy_exported
 
-        return model.income_from_exports == income
+        return self.income_from_exports == income
 
-    @staticmethod
     @constraint()
-    def calculate_maintenance_cost(model):
-        """
-        A constraint for calculating the maintenance cost.
-
-        Args:
-            model: The Pyomo model
-        """
+    def calculate_maintenance_cost(self):
+        """A constraint for calculating the maintenance cost."""
         cost = 0
-        for t in model.time:
-            for tech in model.technologies:
-                for energy in model.energy_carrier:
-                    cost += (model.energy_imported[t, tech]
-                             * model.CONVERSION_EFFICIENCY[tech, energy]
-                             * model.OMV_COSTS[tech])
+        for t in self.time:
+            for tech in self.technologies:
+                for energy in self.output_streams:
+                    cost += (self.energy_imported[t][tech]
+                             * self.CONVERSION_EFFICIENCY[tech][energy]
+                             * self.OMV_COSTS[tech])
 
-        return model.maintenance_cost == cost
+        return self.maintenance_cost == cost
 
-    @staticmethod
     @constraint()
-    def calculate_operating_cost(model):
-        """
-        A constraint for calculating the operating cost.
-
-        Args:
-            model: The Pyomo model
-        """
+    def calculate_operating_cost(self):
+        """A constraint for calculating the operating cost."""
         cost = 0
-        for tech in model.technologies:
-            total_energy_imported = sum(model.energy_imported[t, tech]
-                                        for t in model.time)
+        for tech in self.technologies:
+            total_energy_imported = sum(self.energy_imported[t][tech]
+                                        for t in self.time)
 
-            cost += model.OPERATING_PRICES[tech] * total_energy_imported
+            cost += self.OPERATING_PRICES[tech] * total_energy_imported
 
-        return model.operating_cost == cost
+        return self.operating_cost == cost
 
-    @staticmethod
     @constraint('time', 'storages')
-    def storage_capacity(model, t, storage):
+    def storage_level_below_capacity(self, t, storage):
         """
-        Ensure the storage level is below the storage's capacity.
+        Ensure the storage's level is below the storage's capacity.
 
         Args:
-            model: The Pyomo model
             t: A time step
             storage: A storage
         """
-        storage_level = model.storage_level[t, storage]
-        storage_capacity = model.storage_capacity[storage]
+        storage_level = self.storage_level[t][storage]
+        storage_capacity = self.storage_capacity[storage]
 
         return storage_level <= storage_capacity
 
-    @staticmethod
     @constraint('time', 'storages')
-    def storage_min_state(model, t, storage):
+    def storage_level_above_minimum(self, t, storage):
         """
-        Ensure the storage level is above it's minimum level.\
+        Ensure the storage level is above it's minimum level.
 
         Args:
-            model: The Pyomo model
             t: A time step
             storage: A storage
         """
-        storage_capacity = model.storage_capacity[storage]
-        min_soc = model.MIN_STATE_OF_CHARGE[storage]
-        storage_level = model.storage_level[t, storage]
+        storage_capacity = self.storage_capacity[storage]
+        min_soc = self.MIN_STATE_OF_CHARGE[storage]
+        storage_level = self.storage_level[t][storage]
 
         min_storage_level = storage_capacity * min_soc
 
         return min_storage_level <= storage_level
 
-    @staticmethod
     @constraint('time', 'storages')
-    def storage_discharge_rate(model, t, storage):
+    def cap_storage_discharge_rate(self, t, storage):
         """
         Ensure the discharge rate of a storage is below it's maximum rate.
 
         Args:
-            model: The Pyomo model
             t: A time step
             storage: A storage
         """
-        max_discharge_rate = model.MAX_DISCHARGE_RATE[storage]
-        storage_capacity = model.storage_capacity[storage]
-        discharge_rate = model.energy_from_storage[t, storage]
+        max_discharge_rate = self.MAX_DISCHARGE_RATE[storage]
+        storage_capacity = self.storage_capacity[storage]
+        discharge_rate = self.energy_from_storage[t][storage]
 
         max_rate = max_discharge_rate * storage_capacity
 
         return discharge_rate <= max_rate
 
-    @staticmethod
     @constraint('time', 'storages')
-    def storage_charge_rate(model, t, storage):
+    def cap_storage_charge_rate(self, t, storage):
         """
         Ensure the charge rate of a storage is below it's maximum rate.
 
         Args:
-            model: The Pyomo model
             t: A time step
             storage: A storage
         """
-        max_charge_rate = model.MAX_CHARGE_RATE[storage]
-        storage_capacity = model.storage_capacity[storage]
-        charge_rate = model.energy_to_storage[t, storage]
+        max_charge_rate = self.MAX_CHARGE_RATE[storage]
+        storage_capacity = self.storage_capacity[storage]
+        charge_rate = self.energy_to_storage[t][storage]
 
         max_rate = max_charge_rate * storage_capacity
 
         return charge_rate <= max_rate
 
-    @staticmethod
-    @constraint('sub_time', 'storages')
-    def storage_balance(model, t, storage):
+    @constraint('time', 'storages')
+    def storage_balance(self, t, storage):
         """
         Calculate the current storage level from the previous level.
 
         Args:
-            model: The Pyomo model
             t: A time step
             storage: A storage
         """
-        current_storage_level = model.storage_level[t, storage]
-        previous_storage_level = model.storage_level[t - 1, storage]
+        # See the storage_level declaration for more details
+        next_storage_level = self.storage_level[t + 1][storage]
+        current_storage_level = self.storage_level[t][storage]
 
-        storage_standing_loss = model.STORAGE_STANDING_LOSSES[storage]
+        storage_standing_loss = self.STORAGE_STANDING_LOSSES[storage]
 
-        discharge_rate = model.DISCHARGING_EFFICIENCY[storage]
-        charge_rate = model.CHARGING_EFFICIENCY[storage]
+        discharge_rate = self.DISCHARGING_EFFICIENCY[storage]
+        charge_rate = self.CHARGING_EFFICIENCY[storage]
 
-        q_in = model.energy_to_storage[t, storage]
-        q_out = model.energy_from_storage[t, storage]
+        charge_in = self.energy_to_storage[t][storage]
+        charge_out = self.energy_from_storage[t][storage]
 
-        calculated_level = (
-            ((1 - storage_standing_loss) * previous_storage_level)
-            + (charge_rate * q_in)
-            - ((1 / discharge_rate) * q_out)
+        calculated_next_storage_level = (
+            ((1 - storage_standing_loss) * current_storage_level)
+            + (charge_rate * charge_in)
+            - ((1 / discharge_rate) * charge_out)
         )
-        return current_storage_level == calculated_level
+        return next_storage_level == calculated_next_storage_level
 
-    @staticmethod
     @constraint('technologies')
-    def fix_cost_constant(model, tech):
+    def allow_capacity_when_installed(self, tech):
         """
+        Ensure the tech's capacity is relevant if the tech is installed.
         Args:
-            model: The Pyomo model
             tech: A converter
         """
-        capacity = model.capacities[tech]
-        rhs = model.BIG_M * model.Ytechnologies[tech]
+        capacity = self.capacities[tech]
+        rhs = self.BIG_M * self.is_installed[tech]
         return capacity <= rhs
 
-    @staticmethod
-    @constraint('roof_tech')
-    def roof_area(model, roof):
+    @constraint()
+    def roof_tech_area_below_max(self):
+        """ Ensure the roof techs are taking up less area than there is roof.
         """
-        Ensure the roof techs are taking up less area than there is roof.
+        total_roof_area = sum(self.capacities[roof] for roof in self.roof_tech)
 
-        Args:
-            model: The Pyomo model
-            roof: A roof converter
-        """
-        roof_area = model.capacities[roof]
+        return total_roof_area <= self.MAX_SOLAR_AREA
 
-        return roof_area <= model.MAX_SOLAR_AREA
-
-    @staticmethod
-    @constraint('time', 'solar_techs', 'energy_carrier')
-    def solar_input(model, t, solar_tech, out):
+    @constraint('time', 'solar_techs', 'output_streams')
+    def calculate_solar_energy(self, t, solar_tech, out):
         """
         Calculate the energy from the roof techs per time step.
 
         Args:
-            model: The Pyomo model
             t: A time step
             solar_tech: A solar converter
-            out:
+            out: An output stream
         """
-        conversion_rate = model.CONVERSION_EFFICIENCY[solar_tech, out]
+        conversion_rate = self.CONVERSION_EFFICIENCY[solar_tech][out]
 
         if conversion_rate <= 0:
-            return Constraint.Skip
+            return None
 
-        energy_imported = model.energy_imported[t, solar_tech]
-        capacity = model.capacities[solar_tech]
+        energy_imported = self.energy_imported[t][solar_tech]
+        capacity = self.capacities[solar_tech]
 
-        rhs = model.SOLAR_EM[t] * capacity
+        rhs = self.SOLAR_EM[t] * capacity
 
         return energy_imported == rhs
 
-    @staticmethod
-    @constraint('time', 'part_load', 'energy_carrier')
-    def part_load_u(model, t, disp, out):
+    @constraint('time', 'part_load', 'output_streams')
+    def import_energy_when_on(self, t, disp, out):
         """
+        Only import energy from a dispatch tech if it is on.
+
         Args:
-            model: The Pyomo model
             t: A time step
             disp: A dispatch tech
-            out:
+            out: An output energy stream
         """
-        conversion_rate = model.CONVERSION_EFFICIENCY[disp, out]
+        conversion_rate = self.CONVERSION_EFFICIENCY[disp][out]
 
         if conversion_rate <= 0:
-            return Constraint.Skip
+            return None
 
-        energy_imported = model.energy_imported[t, disp]
+        energy_imported = self.energy_imported[t][disp]
+        is_on = self.is_on[t][disp]
 
         lhs = energy_imported * conversion_rate
-        rhs = model.BIG_M * model.Yon[t, disp]
+        rhs = self.BIG_M * is_on
 
         return lhs <= rhs
 
-    @staticmethod
-    @constraint('time', 'part_load', 'energy_carrier')
-    def part_load_l(model, t, disp, out):
+    @constraint('time', 'part_load', 'output_streams')
+    def part_load_l(self, t, disp, out):
         """
         Args:
-            model: The Pyomo model
             t: A time step
             disp: A dispatch tech
-            out:
+            out: An output energy stream
         """
-        conversion_rate = model.CONVERSION_EFFICIENCY[disp, out]
+        conversion_rate = self.CONVERSION_EFFICIENCY[disp][out]
 
         if conversion_rate <= 0:
-            return Constraint.Skip
+            return None
 
-        part_load = model.PART_LOAD[disp, out]
-        capacity = model.capacities[disp]
-        energy_imported = model.energy_imported[t, disp]
+        part_load = self.PART_LOAD[disp][out]
+        capacity = self.capacities[disp]
+        energy_imported = self.energy_imported[t][disp]
+        is_on = self.is_on[t][disp]
 
         lhs = part_load * capacity
 
         rhs = (energy_imported * conversion_rate
-               + model.BIG_M * (1 - model.Yon[t, disp]))
+               + self.BIG_M * (1 - is_on))
         return lhs <= rhs
-
-    @staticmethod
-    @constraint('disp_techs')
-    def max_capacity(model, tech):
-        """
-        Args:
-            model: The Pyomo model
-            tech: A converter
-        """
-        return model.capacities[tech] <= model.MAX_CAP_TECHS[tech]
 
     def _get_storages_from_stream(self, out: str) -> Iterable[Storage]:
         return (storage for storage in self._data.storages
                 if storage.stream == out)
 
     @constraint('time', 'demands')
-    def loads_balance(self, model, t, demand):
+    def loads_balance(self, t, demand):
         """
+        Ensure the loads and exported energy is below the produced energy.
+
         Args:
-            model: The Pyomo model
             t: A time step
             demand: An output stream
         """
-        load = model.LOADS[t, demand]
-        energy_exported = model.energy_exported[t, demand]
+        load = self.LOADS[demand][t]
+        energy_exported = self.energy_exported[t][demand]
 
         lhs = load + energy_exported
 
         total_q_out = 0
         total_q_in = 0
         for storage in self._get_storages_from_stream(demand):
-            total_q_in += model.energy_to_storage[t, storage.name]
-            total_q_out += model.energy_from_storage[t, storage.name]
+            total_q_in += self.energy_to_storage[t][storage.name]
+            total_q_out += self.energy_from_storage[t][storage.name]
 
         energy_in = 0
-        for tech in model.technologies:
-            energy_imported = model.energy_imported[t, tech]
-            conversion_rate = model.CONVERSION_EFFICIENCY[tech, demand]
+        for tech in self.technologies:
+            energy_imported = self.energy_imported[t][tech]
+            conversion_rate = self.CONVERSION_EFFICIENCY[tech][demand]
 
             energy_in += energy_imported * conversion_rate
 
@@ -516,29 +596,39 @@ class EHubModel:
 
         return lhs <= rhs
 
-    @staticmethod
-    @constraint('time', 'technologies', 'energy_carrier')
-    def capacity_const(model, t, tech, output_type):
+    @constraint('time', 'technologies', 'output_streams')
+    def energy_imported_below_capacity(self, t, tech, output_type):
         """
+        Ensure the energy imported by a tech is less than its capacity.
+
         Args:
-            model: The Pyomo model
             t: A time step
             tech: A converter
             output_type: An output stream
         """
-        conversion_rate = model.CONVERSION_EFFICIENCY[tech, output_type]
+        conversion_rate = self.CONVERSION_EFFICIENCY[tech][output_type]
 
-        if conversion_rate <= 0 or tech in model.solar_techs:
-            return Constraint.Skip
+        if conversion_rate <= 0 or tech in self.solar_techs:
+            return None
 
-        energy_imported = model.energy_imported[t, tech]
-        capacity = model.capacities[tech]
+        energy_imported = self.energy_imported[t][tech]
+        capacity = self.capacities[tech]
 
         energy_in = energy_imported * conversion_rate
 
         return energy_in <= capacity
 
-    def _add_constraints_new(self):
+    def _add_constraint_to_constraints(self, constraint_):
+        # Comparing to True and False is bad, but expression can
+        # be many types
+        if constraint_ is True:
+            return
+        elif constraint_ is False:
+            raise InfeasibleConstraintError()
+        elif constraint_ is not None:
+            self.constraints.append(constraint_)
+
+    def _add_indexed_constraints(self):
         """Add all the constraint decorated functions to the model."""
         methods = [getattr(self, method)
                    for method in dir(self)
@@ -546,13 +636,31 @@ class EHubModel:
         rules = (rule for rule in methods if hasattr(rule, 'is_constraint'))
 
         for rule in rules:
+            logging.info(f'Found indexed constraint: {rule.__name__}')
             if not rule.enabled:
+                logging.info(f'{rule.__name__} is not enabled')
                 continue
 
-            name = rule.__name__ + '_constraint'
-            args = [getattr(self._model, arg) for arg in rule.args]
+            logging.info(f'{rule.__name__} is enabled')
 
-            setattr(self._model, name, Constraint(*args, rule=rule))
+            if not rule.args:
+                # Constraint is not indexed by anything
+                expression = rule()
+
+                try:
+                    self._add_constraint_to_constraints(expression)
+                except InfeasibleConstraintError:
+                    raise InfeasibleConstraintError(rule.__name__)
+            else:
+                sets = [getattr(self, arg) for arg in rule.args]
+
+                for indices in product(*sets):
+                    expression = rule(*indices)
+
+                    try:
+                        self._add_constraint_to_constraints(expression)
+                    except InfeasibleConstraintError:
+                        raise InfeasibleConstraintError(rule.__name__, indices)
 
     def _add_constraint_lists(self):
         methods = [getattr(self, method)
@@ -562,28 +670,27 @@ class EHubModel:
                  if hasattr(rule, 'is_constraint_list'))
 
         for rule in rules:
+            logging.info(f'Found constraint list: {rule.__name__}')
             if not rule.enabled:
+                logging.info(f'{rule.__name__} is NOT enabled')
                 continue
+            logging.info(f'{rule.__name__} is enabled')
 
-            name = rule.__name__ + '_constraint_list'
-
-            constraints = ConstraintList()
             for expression in rule():
-                constraints.add(expression)
-
-            setattr(self._model, name, constraints)
+                self.constraints.append(expression)
 
     @constraint_list()
     def capacity_constraints(self):
         """Ensure the capacities are within their given bounds."""
         for capacity in self._data.capacities:
-            variable = getattr(self._model, capacity.name)
+            variable = getattr(self, capacity.name)
 
             lower_bound = capacity.lower_bound
             upper_bound = capacity.upper_bound
 
             if lower_bound is not None and upper_bound is not None:
-                yield lower_bound <= variable <= upper_bound
+                yield lower_bound <= variable
+                yield variable <= upper_bound
             elif lower_bound is not None and upper_bound is None:
                 yield lower_bound <= variable
             elif lower_bound is None and upper_bound is not None:
@@ -592,21 +699,20 @@ class EHubModel:
                 raise RuntimeError
 
     def _add_constraints(self):
-        self._add_constraints_new()
+        self._add_indexed_constraints()
         self._add_constraint_lists()
 
     @constraint_list()
-    def _add_unknown_storage_constraint(self):
+    def storage_looping(self):
         """Ensure that the storage level at the beginning is equal to it's end
         level."""
-        model = self._model
-
         for storage in self._data.storages:
-            last_entry = model.time.last()
-            first_entry = model.time.first()
+            # See the storage_level declaration
+            last_entry = list(self.time)[-1] + 1
+            first_entry = list(self.time)[0]
 
-            start_level = model.storage_level[first_entry, storage.name]
-            end_level = model.storage_level[last_entry, storage.name]
+            start_level = self.storage_level[first_entry][storage.name]
+            end_level = self.storage_level[last_entry][storage.name]
 
             yield start_level == end_level
 
@@ -615,135 +721,87 @@ class EHubModel:
             domain = capacity.domain
             name = capacity.name
 
-            setattr(self._model, name, Var(domain=domain))
+            try:
+                variable = DOMAIN_TO_VARIABLE[domain]()
+            except KeyError:
+                raise ValueError(
+                    f'Cannot create variable of type: {domain}. Can only be: '
+                    f'{list(DOMAIN_TO_VARIABLE.keys())}'
+                )
 
-    def _add_variables(self):
-        data = self._data
-        model = self._model
+            setattr(self, name, variable)
 
-        self._add_capacity_variables()
+    @constraint()
+    def operating_cost_above_zero(self):
+        """The operating cost should be positive."""
+        return self.operating_cost >= 0
 
-        # Global variables
-        model.energy_imported = Var(model.time, model.technologies,
-                                    domain=NonNegativeReals)
-        model.energy_exported = Var(model.time, model.energy_carrier,
-                                    domain=NonNegativeReals)
+    @constraint()
+    def maintenance_cost_above_zero(self):
+        """The maintenance cost should be positive."""
+        return self.maintenance_cost >= 0
 
-        model.capacities = ConstantOrVar(model.technologies,
-                                         model=model,
-                                         values=data.converters_capacity)
+    @constraint()
+    def income_from_exports_above_zero(self):
+        """The income from exports should be positive."""
+        return self.income_from_exports >= 0
 
-        model.Ytechnologies = Var(model.technologies, domain=Binary)
+    @constraint()
+    def investment_cost_above_zero(self):
+        """The investment cost should be positive."""
+        return self.investment_cost >= 0
 
-        model.Yon = Var(model.time, model.technologies, domain=Binary)
+    @constraint('time', 'technologies')
+    def energy_imported_is_above_zero(self, t, tech):
+        """Energy imported should be positive."""
+        return self.energy_imported[t][tech] >= 0
 
-        model.total_cost = Var(domain=Reals)
-        model.operating_cost = Var(domain=NonNegativeReals)
-        model.maintenance_cost = Var(domain=NonNegativeReals)
-        model.income_from_exports = Var(domain=NonNegativeReals)
-        model.investment_cost = Var(domain=NonNegativeReals)
+    @constraint('time', 'output_streams')
+    def energy_exported_is_above_zero(self, t, output_stream):
+        """Energy exported should be positive."""
+        return self.energy_exported[t][output_stream] >= 0
 
-        model.total_carbon = Var(domain=Reals)
+    @constraint('time', 'storages')
+    def energy_to_storage_above_zero(self, t, storage):
+        """Energy to storage should be positive."""
+        return self.energy_to_storage[t][storage] >= 0
 
-        # Storage variables
-        model.energy_to_storage = Var(model.time, model.storages,
-                                      domain=NonNegativeReals)
-        model.energy_from_storage = Var(model.time, model.storages,
-                                        domain=NonNegativeReals)
+    @constraint('time', 'storages')
+    def energy_from_storage_above_zero(self, t, storage):
+        """Energy from the storages should be positive."""
+        return self.energy_from_storage[t][storage] >= 0
 
-        model.storage_level = Var(model.time, model.storages,
-                                  domain=NonNegativeReals)
+    @constraint('time', 'storages')
+    def storage_level_above_zero(self, t, storage):
+        """Storages' levels should be above zero."""
+        return self.storage_level[t][storage] >= 0
 
-        model.storage_capacity = ConstantOrVar(
-            model.storages, model=model, values=self._data.storage_capacity
-        )
+    @property
+    def constraints(self):
+        """The list of constraints on the model."""
+        return self._constraints
 
-    def _add_parameters(self):
-        data = self._data
-        model = self._model
+    @constraints.setter
+    def constraints(self, constraints):
+        """Set the constraints of the model."""
+        self._constraints = constraints
 
-        # coupling matrix & Technical parameters
-        # coupling matrix technology efficiencies
-        model.CONVERSION_EFFICIENCY = Param(model.technologies,
-                                            model.streams,
-                                            initialize=data.c_matrix)
-        model.MAX_CAP_TECHS = ConstantOrVar(model.disp_techs, model=model,
-                                            values=data.max_capacity)
+    def _public_attributes(self):
+        return {name: value
+                for name, value in self.__dict__.items()
+                if not name.startswith('_')}
 
-        model.MAX_CHARGE_RATE = Param(model.storages,
-                                      initialize=data.storage_charge)
-        model.MAX_DISCHARGE_RATE = Param(model.storages,
-                                         initialize=data.storage_discharge)
-        model.STORAGE_STANDING_LOSSES = Param(model.storages,
-                                              initialize=data.storage_loss)
-        model.CHARGING_EFFICIENCY = Param(model.storages,
-                                          initialize=data.storage_ef_ch)
-        model.DISCHARGING_EFFICIENCY = Param(model.storages,
-                                             initialize=data.storage_ef_disch)
-        model.MIN_STATE_OF_CHARGE = Param(model.storages,
-                                          initialize=data.storage_min_soc)
-        # PartloadInput
-        model.PART_LOAD = Param(model.technologies, model.energy_carrier,
-                                initialize=data.part_load)
-
-        # carbon factors
-        model.CARBON_FACTORS = Param(model.technologies,
-                                     initialize=data.carbon_factors)
-        model.MAX_CARBON = Param(initialize=MAX_CARBON)
-
-        # Cost parameters
-        # Technologies capital costs
-        model.LINEAR_CAPITAL_COSTS = Param(model.technologies,
-                                           initialize=data.linear_cost)
-        model.FIXED_CAPITAL_COSTS = Param(model.technologies,
-                                          initialize=data.fixed_capital_costs)
-        model.LINEAR_STORAGE_COSTS = Param(model.storages,
-                                           initialize=data.storage_lin_cost)
-        # Operating prices technologies
-        model.OPERATING_PRICES = Param(model.technologies,
-                                       initialize=data.fuel_price)
-        model.FEED_IN_TARIFFS = Param(model.energy_carrier,
-                                      initialize=data.feed_in)
-        # Maintenance costs
-        model.OMV_COSTS = Param(model.technologies,
-                                initialize=data.variable_maintenance_cost)
-
-        # Declaring Global Parameters
-        model.TIME_HORIZON = Param(within=NonNegativeReals,
-                                   initialize=TIME_HORIZON)
-
-        model.BIG_M = Param(within=NonNegativeReals, initialize=BIG_M)
-
-        model.INTEREST_RATE = Param(within=NonNegativeReals,
-                                    initialize=data.interest_rate)
-
-        model.MAX_SOLAR_AREA = Param(initialize=MAX_SOLAR_AREA)
-
-        # loads
-        model.LOADS = Param(model.time, model.demands,
-                            initialize=data.loads)
-        model.SOLAR_EM = Param(model.time, initialize=data.solar_data)
-
-        model.NET_PRESENT_VALUE_TECH = Param(model.technologies,
-                                             domain=NonNegativeReals,
-                                             initialize=data.tech_npv)
-        model.NET_PRESENT_VALUE_STORAGE = Param(model.storages,
-                                                domain=NonNegativeReals,
-                                                initialize=data.storage_npv)
-
-    def solve(self, solver_settings: dict = None):
+    def solve(self, solver_settings: dict = None, is_verbose: bool = False):
         """
         Solve the model.
 
         Args:
             solver_settings: The config options for the solver
+            is_verbose: Makes it so the solver prints everything
 
         Returns:
             The results
         """
-        if not self._model:
-            raise RuntimeError("Can't solve a model with no data.")
-
         if solver_settings is None:
             solver_settings = DEFAULT_SOLVER_SETTINGS
 
@@ -752,14 +810,11 @@ class EHubModel:
         if options is None:
             options = {}
 
-        opt = SolverFactory(solver)
-        opt.options = options
-        solver_manager = SolverManagerFactory("serial")
+        status = pylp.solve(objective=self.objective,
+                            constraints=self.constraints,
+                            minimize=True,
+                            solver=solver,
+                            verbose=is_verbose)
 
-        results = solver_manager.solve(self._model, opt=opt, tee=True,
-                                       timelimit=None)
-
-        # in order to get the solutions found by the solver
-        self._model.solutions.store_to(results)
-
-        return response_format.create_response(results, self._model)
+        attributes = self._public_attributes()
+        return response_format.create_response(status, attributes)

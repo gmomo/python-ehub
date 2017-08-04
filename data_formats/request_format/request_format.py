@@ -10,9 +10,8 @@ Examples:
     >>> request_format.validate(example)
     Traceback (most recent call last):
         ...
-    data_formats.request_format.RequestValidationError
+    data_formats.request_format.request_format.RequestValidationError
 """
-
 import jsonschema
 
 SCHEMA = {
@@ -446,5 +445,5 @@ def validate(instance: dict) -> None:
     """
     try:
         jsonschema.validate(instance, SCHEMA)
-    except jsonschema.ValidationError:
-        raise RequestValidationError from None
+    except jsonschema.ValidationError as exc:
+        raise RequestValidationError from exc

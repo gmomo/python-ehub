@@ -5,9 +5,13 @@ __pycache__/
 # PyCharm
 .idea/
 
+# Docker
+server_image
+
 # Generated Files
 out.txt
 output.txt
+*.log
 
 # Other
 .~lock*
