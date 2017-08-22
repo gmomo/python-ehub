@@ -21,7 +21,7 @@ from bkcharts.operations import blend
 import networkx as nx
 
 from notebook_import import *
-from ehub_1 import data,model
+from python_ehub import data,model
 
 class VizTool:
     
