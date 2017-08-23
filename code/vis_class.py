@@ -26,6 +26,7 @@ from python_ehub import data,model
 class VizTool:
     
     def __init__(self):
+
         self.n_hubs = data.numberofhubs
         self.n_forms = data.numberofdemands
         self.n_techs = len(data.Technologies[0].columns) + 1
@@ -297,21 +298,21 @@ class VizTool:
                     cap_source['n' + str(techs) + str(forms)][hub_step-1] = self.cap_dict[(hub_step,techs,forms)]
                 #cap_source['n' + str(techs) + str(forms)] = np.array(cap_source['n' + str(techs) + str(forms)])
         
-        for forms in range(1,self.n_forms+1):
-            cap_source['n' + str(self.n_techs+2) + str(forms)] = np.zeros((self.n_hubs))
-            for hub_step in range(1,self.n_hubs+1):
-                for techs in range(1,self.n_techs+1):
-                    cap_source['n' + str(self.n_techs+2) + str(forms)][hub_step-1] += cap_source['n' + str(techs) + str(forms)][hub_step-1]
-        
-        cap_source['n_list'] = []
-        for hub_step in range(1,self.n_hubs+1):
-            cap_source['n_list'].append( "Node " + str(hub_step))
-        cap_source['n_list'] = np.array(cap_source['n_list'])
+#        for forms in range(1,self.n_forms+1):
+#            cap_source['n' + str(self.n_techs+2) + str(forms)] = np.zeros((self.n_hubs))
+#            for hub_step in range(1,self.n_hubs+1):
+#                for techs in range(1,self.n_techs+1):
+#                    cap_source['n' + str(self.n_techs+2) + str(forms)][hub_step-1] += cap_source['n' + str(techs) + str(forms)][hub_step-1]
+#        
+#        cap_source['n_list'] = []
+#        for hub_step in range(1,self.n_hubs+1):
+#            cap_source['n_list'].append( "Node " + str(hub_step))
+        cap_source['n_list'] = self.nodes
         #cap_source['n21'] = np.array([34.8,78,54,12,90])
-        
+                
         cols = []
         for techs in range(1,self.n_techs+1):
-            cols.append('n' + str(1) + str(techs))
+            cols.append('n' + str(techs) + str(1))
         
         v_bar = Bar(cap_source,
                   values=blend(*cols,name ="medal_v",labels_name = "medals"),
@@ -373,15 +374,16 @@ class VizTool:
         tech_legend1 = self.create_legend() 
         
         storage = model.StorageCap.get_values()
+        print (storage)
         storage_dict = {}
-        storage_dict['n_list'] = np.array(cap_source['n_list'])
+        storage_dict['n_list'] = self.nodes
            
         for forms in range(1,self.n_forms+1):
             storage_dict['f' + str(forms)] = np.zeros((self.n_hubs))
             for hub_step in range(1,self.n_hubs+1):
                 storage_dict['f' + str(forms)][hub_step-1] = storage[(hub_step,forms)]
         
-        storage_dict['f1'] = [23,67,98,41,11]
+#        storage_dict['f1'] = [23,67,98,41,11]
         
         storage_bar = Bar(storage_dict,
                   values='f1',
@@ -431,8 +433,12 @@ class VizTool:
         gis_dict = {}
         gis_dict['x'] = 14*np.random.rand(self.n_hubs,)
         gis_dict['y'] = 6*np.random.rand(self.n_hubs,)
-        x_range = (gis_dict['x'].min(), gis_dict['x'].max())
-        y_range = (gis_dict['y'].min(), gis_dict['y'].max())
+        if(self.n_hubs==1):
+            x_range = (0, gis_dict['x'].max())
+            y_range = (0, gis_dict['y'].max())
+        else:
+            x_range = (gis_dict['x'].min(), gis_dict['x'].max())
+            y_range = (gis_dict['y'].min(), gis_dict['y'].max())
         gis_plot = figure(title="Node Locations with Capacities",plot_width=600, plot_height=600,x_range=x_range,y_range=y_range)
         gis_plot.xaxis.axis_label = "X Coordinates"
         gis_plot.yaxis.axis_label = "Y Coordinates"
@@ -446,7 +452,7 @@ class VizTool:
         
         gis_dict['temp'] = gis_dict['n11']
         gis_dict['tempn'] = gis_dict['n11n']
-                
+        
         gis_source = ColumnDataSource(data=gis_dict)
         
         gis_plot.circle(x='x',
@@ -932,6 +938,14 @@ class VizTool:
         col_nodes = []
         for hubs in range(1,self.n_hubs+1):
             col_nodes.append('n' + str(hubs))
+            
+        if(self.n_hubs == 1):
+            hub_colour = ["red"]
+        elif(self.n_hubs == 2):
+            hub_colour = ["red","blue"]
+        else:
+            hub_colour = brewer['Set1'][self.n_hubs]
+        
         
         n_bar = Bar(c_em_nodes,
                   values=blend(*col_nodes, name='medals', labels_name='medal'),
@@ -940,7 +954,7 @@ class VizTool:
                   legend=None,
                   title="Carbon Emissions per Node",
                   color=color(columns='medal',
-                              palette=brewer['Set1'][self.n_hubs],
+                              palette=hub_colour,
                               sort=True),
                   plot_width = 1000,
                   plot_height = 300,
@@ -960,7 +974,7 @@ class VizTool:
         x = self.nodes
         #pal = ['SaddleBrown', 'Silver', 'Goldenrod']
         node_legend = figure(width = 1000,height = 50, toolbar_location=None,active_drag=None,x_range=self.nodes)
-        node_legend.rect(x, y, color= brewer['Set1'][self.n_hubs], width=1, height=10)
+        node_legend.rect(x, y, color= hub_colour, width=1, height=10)
         node_legend.yaxis.major_label_text_color = None
         node_legend.yaxis.major_tick_line_color = None
         node_legend.yaxis.minor_tick_line_color = None
@@ -1010,28 +1024,27 @@ class VizTool:
         self.costs_glyph = self.costs()
         self.carbon_glyph = self.carbon_emissions()
         self.exports_glyph = self.exports()
-        self.networks_glyph = self.networks()
-        
+#        
         self.tab1 = Panel(child=self.demand_glyph, title="Energy Demand")
         self.tab2 = Panel(child=self.production_glyph, title="Energy Production")
         self.tab3 = Panel(child=self.capacities_glyph,title="Energy Capacities")
-        self.tab4 = Panel(child=self.networks_glyph,title="Energy Networks")
         self.tab5 = Panel(child=self.costs_glyph,title="Energy Costs")
         self.tab6 = Panel(child=self.carbon_glyph,title="Carbon Emissions")
         self.tab7 = Panel(child = self.exports_glyph,title="Energy Exports")
-        self.tabs = Tabs(tabs=[self.tab1,self.tab2,self.tab3,self.tab4,self.tab5,self.tab6,self.tab7 ])
+        
+        if(self.n_hubs!=1):
+            self.networks_glyph = self.networks()
+            self.tab4 = Panel(child=self.networks_glyph,title="Energy Networks")
+            self.tabs = Tabs(tabs=[self.tab1,self.tab2,self.tab3,self.tab4,self.tab5,self.tab6,self.tab7])
+        else:
+            self.tabs = Tabs(tabs=[self.tab1,self.tab2,self.tab3,self.tab5,self.tab6,self.tab7])
         
         return self.tabs
         
 viz = VizTool()
 curdoc().add_root(viz.layout())
         
-        
-
-        
-        
-        
-
+       
         
         
 
