@@ -32,11 +32,13 @@ or if executing directly from the IPython Notebook
 `--show` opens up a new window to display the plots
 `--port #portno.` adds which port to use on the localhost. Usually 500xx. Default port 5006. 
 
-It should open up a new browser window like the one shown below. 
+It should open up a new browser window like the one shown below. All plots are have a toolbar on the side, with various options. Box Zoom, Wheel Zoom,Reset,Save plots to desktop. Hover over plots to see data points. Line Graph legends are also interactive, they can be used to hide/show plots.  
 
 ![alt text][logo]
 
 [logo]: https://github.com/gmomo/python-ehub/blob/master/docs/screenshot_1.png "Viz Tool Frontend"
+
+
 
 ## Contributing
 
@@ -69,7 +71,26 @@ The `vis_class.py` file basically consists of a class `VizTool`. Certain class v
 `self.e_techs` = Tech List
 
 
-This class has functions corresponding to each section of the tabbed interface. Each function lays out returns its individual plots. In the `layout()` function, all these plots are assembled into a tabbed interface. It also has a function `create_legend()` to create a custom legend for the technologies. Each individual function uses a certain `ColumnDataSource` object in `bokeh` to plot. Each `ColumnDataSource` object takes a dictionary which contains the quantities to plot. The table below lists the functions, their plots and their 
+This class has functions corresponding to each section of the tabbed interface. Each function lays out returns its individual plots. In the `layout()` function, all these plots are assembled into a tabbed interface. It also has a function `create_legend()` to create a custom legend for the technologies. Each individual function uses a certain `ColumnDataSource` object or a dictionary in `bokeh` to plot. Each `ColumnDataSource` object wraps a dictionary which contains the quantities to plot. Each dictionary contains lists. Functions,plots and their corresponding dictionaries with their accompanying lists are given below.
+
+#### `demand_plot()` 
+1. data_dict 
+
+Value = Contains demand data by node and form indexed by timestep. 
+Key = 'n' + form_number
+
+#### `production()`
+1. prod_data
+2. prod_dataw = For week plots
+
+Value = Contains production data indexed by timestep or weeks respectively.
+Key = 'n' + hub_number + form_number + tech_number
+
+#### `capacities()`
+1. cap_source
+
+
+
 
 
 
