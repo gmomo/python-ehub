@@ -71,24 +71,56 @@ The `vis_class.py` file basically consists of a class `VizTool`. Certain class v
 `self.e_techs` = Tech List
 
 
-This class has functions corresponding to each section of the tabbed interface. Each function lays out returns its individual plots. In the `layout()` function, all these plots are assembled into a tabbed interface. It also has a function `create_legend()` to create a custom legend for the technologies. Each individual function uses a certain `ColumnDataSource` object or a dictionary in `bokeh` to plot. Each `ColumnDataSource` object wraps a dictionary which contains the quantities to plot. Each dictionary contains lists. Functions,plots and their corresponding dictionaries with their accompanying lists are given below.
+This class has functions corresponding to each section of the tabbed interface. Each function lays out returns its individual plots. In the `layout()` function, all these plots are assembled into a tabbed interface. It also has a function `create_legend()` to create a custom legend for the technologies. Each individual function uses a certain `ColumnDataSource` object or a dictionary in `bokeh` to plot. Each `ColumnDataSource` object wraps a dictionary which contains the quantities to plot. Each dictionary contains lists as values with associated keys. Functions,plots and their corresponding dictionaries with their accompanying lists are given below.
 
 #### `demand_plot()` 
 1. data_dict 
 
-Value = Contains demand data by node and form indexed by timestep. 
+Value = Contains demand data by node and form indexed by timestep per form
 Key = 'n' + form_number
 
 #### `production()`
 1. prod_data
 2. prod_dataw = For week plots
 
-Value = Contains production data indexed by timestep or weeks respectively.
+Value = Contains production data indexed by timestep or weeks respectively per hub, form and tech.
 Key = 'n' + hub_number + form_number + tech_number
 
 #### `capacities()`
 1. cap_source
+Value = Contains capacity data indexed by hubs per tech and form
+Key = 'n' + tech_number + form_number
+2.storage_dict
+Value = Contains storage capacity indexed by hubs per form
+Key = 'f' + form_number
 
+#### `costs()`
+1. opcost_data
+2. opcost_dataw
+Value = Contains operational cost data indexed by timesteps/weeks per tech
+Key = 't' + tech_number
+
+#### `carbon_emissions()`
+1. c_em_tech
+2. c_em_techw
+Value = Carbon Emissions indexed by timesteps/weeks per tech
+Key = 't' + tech_number
+
+3. c_em_nodes
+Value = Carbon Emissions indexed by time_steps per node
+Key = 'n' + hub_number
+
+#### `exports()`
+1. exp_dict
+Value = Energy exports indexed by timesteps per form
+Key = 'f' + form_number
+
+## Known Issues
+
+1. Bokeh warnings during compilation, should be fine. 
+2. Two Bokeh Servers cannot run on the same port no. Supply different port numbers.
+3. Initial Loading may take some time.
+4. **Ensure that bokeh.js and python bokeh both have versions 0.12.6, otherwise it may lead to a blank screen. **
 
 
 
