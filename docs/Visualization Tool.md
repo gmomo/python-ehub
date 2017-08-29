@@ -30,13 +30,46 @@ or if executing directly from the IPython Notebook
 
 `bokeh serve` starts the bokeh server
 `--show` opens up a new window to display the plots
-`--port #portno.` adds which port to use on the localhost
+`--port #portno.` adds which port to use on the localhost. Usually 500xx. Default port 5006. 
 
 It should open up a new browser window like the one shown below. 
 
 ![alt text][logo]
 
 [logo]: https://github.com/gmomo/python-ehub/blob/master/docs/screenshot_1.png "Viz Tool Frontend"
+
+## Contributing
+
+### Basic Code Structure
+
+The `vis_class.py` file basically consists of a class `VizTool`. Certain class variables are given below.
+
+`self.n_hubs` = Number of hubs
+
+`self.n_forms` = Number of forms
+
+`self.n_techs` = Number of techs
+
+`self.demand` = Demand data from the ehub tool
+
+`self.model` = Pyomo Model
+
+`self.cmatrix` = Efficiency Matrix
+
+`self.cap_dict` = Capacities
+
+`self.time_steps` = Time Steps
+
+`self.time_weeks` = Weeks if any, otherwise 0
+
+`self.nodes` = Node List 
+
+`self.e_forms` = Form List
+
+`self.e_techs` = Tech List
+
+
+This class has functions corresponding to each section of the tabbed interface. Each function lays out returns its individual plots. In the `layout()` function, all these plots are assembled into a tabbed interface. It also has a function `create_legend()` to create a custom legend for the technologies. Each individual function uses a certain `ColumnDataSource` object in `bokeh` to plot. Each `ColumnDataSource` object takes a dictionary which contains the quantities to plot. The table below lists the functions, their plots and their 
 
 
 
