@@ -81,6 +81,7 @@ Key = 'n' + form_number
 
 #### `production()`
 1. prod_data
+
 2. prod_dataw = For week plots
 
 Value = Contains production data indexed by timestep or weeks respectively per hub, form and tech.
@@ -88,21 +89,27 @@ Key = 'n' + hub_number + form_number + tech_number
 
 #### `capacities()`
 1. cap_source
+
 Value = Contains capacity data indexed by hubs per tech and form
 Key = 'n' + tech_number + form_number
 2.storage_dict
+
 Value = Contains storage capacity indexed by hubs per form
 Key = 'f' + form_number
 
 #### `costs()`
 1. opcost_data
+
 2. opcost_dataw
+
 Value = Contains operational cost data indexed by timesteps/weeks per tech
 Key = 't' + tech_number
 
 #### `carbon_emissions()`
 1. c_em_tech
+
 2. c_em_techw
+
 Value = Carbon Emissions indexed by timesteps/weeks per tech
 Key = 't' + tech_number
 
